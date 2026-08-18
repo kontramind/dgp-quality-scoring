@@ -52,6 +52,19 @@ VARIES_WITH.update({f"{r}__binding_rate": "features_only" for r in RULE_NAMES})
 VARIES_WITH["corr_core_trap"] = "features_only"
 VARIES_WITH["trap_variance_share"] = "coupling_only"
 
+# Physically-meaningful floor per quantity. The z statistic divides by the across-seed sd,
+# so a near-deterministic quantity turns a meaningless difference into a huge z --
+# trap_variance_share is exactly lambda^2 in both implementations and its entire spread is
+# float rounding at 1e-16, yet it scored z=2.39 and missed the 3-sigma threshold only by
+# luck. A difference below these floors is not a difference at any n we run, whatever its
+# z. Stated here so they are arguable rather than implicit.
+_EPS_RATE = 1e-6     # probabilities, rates, AUCs, correlations, variance shares: [0,1]-scale
+_EPS_LOGIT = 1e-4    # logit-scale solver outputs; far below any downstream consequence and
+                     # far above both implementations' root-find tolerances (1e-10 / 1e-8)
+NOISE_FLOOR_EPS = {q: _EPS_RATE for q in QUANTITIES}
+NOISE_FLOOR_EPS["solved_gamma"] = _EPS_LOGIT
+NOISE_FLOOR_EPS["solved_alpha"] = _EPS_LOGIT
+
 
 def sampler_bias_check(reps: int = 400, n: int = 50_000) -> dict:
     """Are the two label samplers themselves biased? ``rng.random(n) < p`` vs binomial.
@@ -147,6 +160,7 @@ def build_table() -> tuple[pd.DataFrame, list[dict]]:
                             mean_ours=np.nan, mean_reference=np.nan, sd_ours=np.nan,
                             sd_reference=np.nan, mean_abs_diff=np.nan, max_abs_diff=np.nan,
                             mean_diff=np.nan, se_mean_diff=np.nan, z_mean_diff=np.nan,
+                            eps_floor=NOISE_FLOOR_EPS[quantity], se_floor=np.nan,
                             noise_floor=np.nan, noise_floor_exceeded=False,
                         )
                     else:
@@ -163,9 +177,11 @@ def build_table() -> tuple[pd.DataFrame, list[dict]]:
                         # 3 standard errors of the difference of means.
                         mean_diff = float(a.mean() - b.mean())
                         se = float(np.sqrt(sd_a**2 / n_compared + sd_b**2 / n_compared))
-                        floor = 3.0 * se
-                        exceeded = abs(mean_diff) > floor if se > 0 else abs(mean_diff) > 0.0
+                        eps = NOISE_FLOOR_EPS[quantity]
+                        floor = max(3.0 * se, eps)
+                        exceeded = abs(mean_diff) > floor
                         row.update(
+                            eps_floor=eps, se_floor=3.0 * se,
                             mean_ours=float(a.mean()), mean_reference=float(b.mean()),
                             sd_ours=sd_a, sd_reference=sd_b,
                             mean_abs_diff=float(diff.mean()), max_abs_diff=float(diff.max()),
@@ -191,12 +207,35 @@ def _flag_calibration(compared: pd.DataFrame) -> dict:
     n_comp = int(len(compared))
     p_t = float(2 * stats.t.sf(3.0, df))
     flagged = compared[compared.noise_floor_exceeded]
+
+    # Row count is not the comparison count: a features_only quantity is identical across
+    # every cell, so its rows are one comparison replicated. Counting each quantity once
+    # per group of cells it can actually differ across gives the honest denominator.
+    n_effective = 0
+    for quantity in QUANTITIES:
+        rows = compared[compared.quantity == quantity]
+        if rows.empty:
+            continue
+        varies = VARIES_WITH[quantity]
+        n_effective += (1 if varies == "features_only"
+                        else rows.coupling.nunique() if varies == "coupling_only"
+                        else len(rows))
+
     return {
         "threshold_sigma": 3.0,
         "approx_df": df,
-        "n_comparisons": n_comp,
+        "n_rows_compared": n_comp,
+        "n_effective_comparisons_upper_bound": n_effective,
+        "denominator_note": (
+            "n_rows_compared counts CSV rows and overstates the comparison count, because "
+            "grid_invariant quantities are replicated across cells (see replication_caveat). "
+            "n_effective_comparisons_upper_bound collapses those replicates. It remains an "
+            "upper bound: within a label_layer quantity the cells are correlated too, since "
+            "one seed's features and one seed's uniform label draw back all 27 cells."
+        ),
         "p_flag_under_agreement_t": p_t,
-        "expected_flags_under_agreement": round(p_t * n_comp, 1),
+        "expected_flags_by_rows": round(p_t * n_comp, 1),
+        "expected_flags_by_effective_comparisons": round(p_t * n_effective, 1),
         "expected_flags_if_statistic_were_normal": round(float(2 * stats.norm.sf(3.0)) * n_comp, 1),
         "observed_flags": int(len(flagged)),
         "observed_flags_excluding_expected_bayes_auc": int(
@@ -249,6 +288,13 @@ def run() -> None:
             "binomial_se_at_n": float(np.sqrt(0.1 * 0.9 / N_SAMPLES)),
             "n_cells_compared": int(compared.n_seeds_compared.gt(0).sum()),
             "flag_calibration": _flag_calibration(compared),
+            "noise_floor_eps": NOISE_FLOOR_EPS,
+            "noise_floor_definition": (
+                "noise_floor = max(3 * se_mean_diff, eps_floor); noise_floor_exceeded = "
+                "|mean_ours - mean_reference| > noise_floor. The eps floor exists because the "
+                "z statistic divides by the across-seed sd, so a near-deterministic quantity "
+                "yields a large z on a physically meaningless difference."
+            ),
             "sampler_bias_check": sampler_bias_check(),
             "replication_caveat": (
                 "Rows with grid_invariant=True (six binding rates, corr_core_trap) are "

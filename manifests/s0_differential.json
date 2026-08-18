@@ -1,10 +1,10 @@
 {
   "artifact": "s0_differential",
   "stage": "S0",
-  "git_sha_at_run": "3cf5dcdb0027ceb06f575a23fd3eae05323e7ca5",
+  "git_sha_at_run": "40ad538de06b81bc345bada099426ad18934a1ec",
   "git_branch": "main",
-  "git_dirty": false,
-  "git_note": "clean tree at run time",
+  "git_dirty": true,
+  "git_note": "SHA is HEAD at run time. The S0 run necessarily predates the commit that introduces it, so a dirty tree here is expected, not a provenance gap.",
   "python": "3.14.0",
   "platform": "Linux-7.0.11-76070011-generic-x86_64-with-glibc2.35",
   "packages": {
@@ -13,7 +13,7 @@
     "scipy": "1.18.0",
     "pytest": "9.1.1"
   },
-  "wall_time_seconds": 92.548,
+  "wall_time_seconds": 92.768,
   "output_paths": {
     "csv": "results/s0_differential.csv",
     "manifest": "manifests/s0_differential.json"
@@ -66,14 +66,32 @@
   "flag_calibration": {
     "threshold_sigma": 3.0,
     "approx_df": 8,
-    "n_comparisons": 276,
+    "n_rows_compared": 276,
+    "n_effective_comparisons_upper_bound": 102,
+    "denominator_note": "n_rows_compared counts CSV rows and overstates the comparison count, because grid_invariant quantities are replicated across cells (see replication_caveat). n_effective_comparisons_upper_bound collapses those replicates. It remains an upper bound: within a label_layer quantity the cells are correlated too, since one seed's features and one seed's uniform label draw back all 27 cells.",
     "p_flag_under_agreement_t": 0.01707168123378265,
-    "expected_flags_under_agreement": 4.7,
+    "expected_flags_by_rows": 4.7,
+    "expected_flags_by_effective_comparisons": 1.7,
     "expected_flags_if_statistic_were_normal": 0.7,
-    "observed_flags": 16,
+    "observed_flags": 6,
     "observed_flags_excluding_expected_bayes_auc": 6,
     "note": "expected_bayes_auc flags are a solver-tolerance artifact, not a behavioural difference: both implementations hit the target to their own convergence tolerance (ours xtol=1e-10, reference xtol=1e-8), so the across-seed sd is ~1e-12 and any offset is 'significant' at a magnitude around 1e-10."
   },
+  "noise_floor_eps": {
+    "realised_prevalence": 1e-06,
+    "expected_bayes_auc": 1e-06,
+    "solved_gamma": 0.0001,
+    "solved_alpha": 0.0001,
+    "corr_core_trap": 1e-06,
+    "trap_variance_share": 1e-06,
+    "R1_smoker_cigs__binding_rate": 1e-06,
+    "R2_glucose_floor__binding_rate": 1e-06,
+    "R3_glucose_ceil__binding_rate": 1e-06,
+    "R4_bp_mandatory__binding_rate": 1e-06,
+    "R5_anatomical__binding_rate": 1e-06,
+    "R6_preg_age__binding_rate": 1e-06
+  },
+  "noise_floor_definition": "noise_floor = max(3 * se_mean_diff, eps_floor); noise_floor_exceeded = |mean_ours - mean_reference| > noise_floor. The eps floor exists because the z statistic divides by the across-seed sd, so a near-deterministic quantity yields a large z on a physically meaningless difference.",
   "sampler_bias_check": {
     "reps": 400,
     "n": 50000,
@@ -87,9 +105,8 @@
     "verdict": "no detectable bias in either sampler"
   },
   "replication_caveat": "Rows with grid_invariant=True (six binding rates, corr_core_trap) are feature-derived and therefore identical across all grid cells for a given seed. Their 23 rows are one 5-seed comparison replicated, so consistent signs across those rows carry no additional evidence.",
-  "n_quantities_exceeding_noise_floor": 16,
+  "n_quantities_exceeding_noise_floor": 6,
   "quantities_exceeding_noise_floor": [
-    "expected_bayes_auc",
     "realised_prevalence",
     "solved_gamma"
   ],

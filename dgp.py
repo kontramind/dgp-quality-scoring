@@ -285,9 +285,12 @@ def _solve_alpha(z: np.ndarray, gamma: float, prevalence: float) -> float:
     The bracket is **analytically guaranteed and scales with gamma**: at
     ``alpha = logit(prev) - gamma*max|z|`` every ``p_i <= prev`` so the mean is at most
     ``prev``, and at ``alpha = logit(prev) + gamma*max|z|`` every ``p_i >= prev`` so the
-    mean is at least ``prev``. A *fixed* bracket is the trap here -- at coupling = 1 the
-    trap score reaches z ~ 5.6, so gamma = 30 needs alpha near -172; a fixed +/-50 bracket
-    floors the reachable mean at ~0.074 and makes low prevalences look infeasible.
+    mean is at least ``prev``. A *fixed* bracket is the trap here: the alpha a low
+    prevalence needs grows like ``gamma * max|z|``, so once the score has a long tail
+    (coupling = 1 is the bad case) a fixed bracket cannot reach it, the reachable mean
+    acquires a floor above the target, and the prevalence looks infeasible when it is not.
+    Measured z range, required alpha and the resulting floor are in
+    ``manifests/s0_coupling1_ceiling.json`` under ``alpha_bracket_diagnostic``.
     """
     target_logit = float(logit(prevalence))
     if gamma <= 0.0:

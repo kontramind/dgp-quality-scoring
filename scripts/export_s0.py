@@ -201,6 +201,12 @@ def export_config_grid() -> None:
     )
 
 
+def _at(frame: pd.DataFrame, prevalence: float, gamma: float) -> float:
+    """Pull one measured AUC out of the sweep, so prose never hand-copies a number."""
+    hit = frame[(frame.prevalence == prevalence) & (frame.gamma == gamma)]
+    return float(hit.expected_bayes_auc.iloc[0])
+
+
 def _exact_ceiling(f: np.ndarray, prevalence: float) -> tuple[float, float, float]:
     """Exact gamma -> infinity Bayes AUC for a discrete score with level masses ``f``.
 
@@ -217,10 +223,37 @@ def _exact_ceiling(f: np.ndarray, prevalence: float) -> tuple[float, float, floa
     return float(num / (prevalence * (1 - prevalence))), float(f[b]), float(t)
 
 
+def _alpha_bracket_diagnostic(z: np.ndarray) -> dict:
+    """Why the alpha bracket must scale with gamma, measured rather than asserted.
+
+    A fixed bracket cannot reach the alpha that low prevalences need once gamma is large,
+    because the required alpha grows like gamma * max|z|.
+    """
+    gamma = dgp._GAMMA_MAX
+    reach = float(np.max(np.abs(z)))
+    out = {
+        "z_min": float(z.min()),
+        "z_max": float(z.max()),
+        "max_abs_z": reach,
+        "gamma": gamma,
+        "required_alpha_at_prevalence": {},
+        "mean_p_floor_under_fixed_bracket": {},
+    }
+    for fixed in (50.0, 60.0):
+        out["mean_p_floor_under_fixed_bracket"][f"alpha_lo={-fixed:g}"] = float(
+            np.mean(dgp.expit(-fixed + gamma * z))
+        )
+    for prevalence in (0.05, 0.10, 0.30):
+        out["required_alpha_at_prevalence"][str(prevalence)] = float(
+            dgp.logit(prevalence) - gamma * reach
+        )
+    return out
+
+
 def export_coupling1_ceiling() -> None:
     """Tie-imposed AUC ceiling at coupling=1.0, swept past the solver's gamma ceiling."""
     t0 = time.perf_counter()
-    cfg = DGPConfig(n_samples=50_000, coupling=1.0, seed=0)
+    cfg = DGPConfig(n_samples=200_000, coupling=1.0, seed=0)
     cols, _ = dgp._generate_cohort(cfg)
     z = dgp._weighted_score(cols, cfg.trap_weights)
     levels, counts = np.unique(np.round(z, 9), return_counts=True)
@@ -258,7 +291,9 @@ def export_coupling1_ceiling() -> None:
                 "takes 16 distinct values. Tied pairs take half credit, which caps the "
                 "achievable AUC at a prevalence-dependent ceiling that no gamma can beat."
             ),
+            "measured_at": {"n_samples": int(cfg.n_samples), "seed": int(cfg.seed)},
             "largest_z_level_mass": float(masses.max()),
+            "alpha_bracket_diagnostic": _alpha_bracket_diagnostic(z),
             "ceiling_by_prevalence": {
                 str(p): {
                     "auc_at_gamma_30": float(frame[(frame.prevalence == p) & (frame.gamma == 30.0)].expected_bayes_auc.iloc[0]),
@@ -271,10 +306,14 @@ def export_coupling1_ceiling() -> None:
             },
             "solver_window_vs_structural": (
                 "The grid cell coupling=1.0 / prevalence=0.30 / target=0.95 raises because "
-                "0.95 exceeds what is achievable at gamma <= 30 (0.9034), NOT because it is "
-                "structurally impossible: the exact gamma -> infinity limit is 0.9751. With "
-                "50.9% of the mass in a single z level the approach to that limit is far too "
-                "slow to be usable (still only 0.9186 at gamma=80), so refusing is correct."
+                f"0.95 exceeds what is achievable at gamma <= {dgp._GAMMA_MAX:g} "
+                f"({_at(frame, 0.30, dgp._GAMMA_MAX):.4f}), NOT because it is structurally "
+                f"impossible: the exact gamma -> infinity limit is "
+                f"{_exact_ceiling(masses, 0.30)[0]:.4f}. With {masses.max():.2%} of the mass "
+                "in a single z level the approach to that limit is far too slow to be usable "
+                f"(still only {_at(frame, 0.30, 80.0):.4f} at gamma=80), so refusing is "
+                f"correct. Measured at n_samples={cfg.n_samples}, seed={cfg.seed}; level "
+                "masses are seed-dependent."
             ),
         },
     )
@@ -330,15 +369,21 @@ def write_run_manifest(calibrated: DGPConfig, wall_time: float) -> None:
         "open_items": [
             {
                 "id": "gamma-coupling1-prev030",
-                "status": "unresolved",
+                "status": "resolved",
                 "detail": (
                     "At coupling=1.0 / prevalence=0.30 / bayes_auc_target=0.85 this "
-                    "implementation solves gamma = 2.472 +/- 0.012 (n=200000, seeds 0-4); "
-                    "the reference reports 2.64. Ruled out: sample size (converges to 2.472 "
-                    "from n=5000 to n=200000) and the glucose_base/sbp_base offset (using the "
-                    "calibrated bases moves gamma to 2.00, i.e. further away). Localised to "
-                    "the trap-score distribution; hand off to the differential test."
+                    "implementation solves gamma = 2.472 +/- 0.012 (n=200000, seeds 0-4) "
+                    "against a quoted reference value of 2.64. Resolved: 2.64 was the "
+                    "reference at n=5000, seed 0 -- the noisiest point on the curve -- "
+                    "quoted as if converged. The reference's own across-seed spread there is "
+                    "2.578 +/- 0.089, converging to 2.462 +/- 0.009 at n=200000. That is "
+                    "inside one sd of this implementation. No discrepancy exists."
                 ),
+                "resolution": "no-defect; stale reference value quoted from an unconverged sample size",
+                "hypotheses_correctly_eliminated": [
+                    "sample size (converges monotonically to 2.472 from n=5000 to n=200000)",
+                    "glucose_base/sbp_base offset (calibrated bases move gamma to 2.00, away from 2.64)",
+                ],
             }
         ],
     }

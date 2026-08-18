@@ -1,0 +1,278 @@
+"""Layer 2 of the differential: distributional agreement with the frozen reference.
+
+Row-by-row comparison is impossible -- the two implementations consume the RNG in
+different orders, so the same seed gives different samples. What is comparable is the
+*distribution* of the solved and realised quantities across the config grid.
+
+n=200000 puts the binomial standard error at ~0.0009, so an agreement of 0.002 means
+something. No pass/fail tolerance is imposed: each quantity is reported with its
+across-seed sd in both implementations, and a difference is only interesting when it
+exceeds that noise floor. ``noise_floor_exceeded`` makes anything real greppable.
+
+Run: ``uv run python scripts/export_differential.py``
+"""
+
+from __future__ import annotations
+
+import importlib.util
+import sys
+import time
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "scripts"))
+
+import dgp
+from dgp import DGPConfig
+from export_s0 import _write  # noqa: E402  -- shared provenance + manifest writer
+
+N_SAMPLES = 200_000
+SEEDS = range(5)
+COUPLINGS = (0.0, 0.5, 1.0)
+TARGETS = (0.65, 0.85, 0.95)
+PREVALENCES = (0.05, 0.10, 0.30)
+
+SCALARS = [
+    "realised_prevalence", "expected_bayes_auc", "solved_gamma", "solved_alpha",
+    "corr_core_trap", "trap_variance_share",
+]
+RULE_NAMES = list(dgp.RULES)
+QUANTITIES = SCALARS + [f"{r}__binding_rate" for r in RULE_NAMES]
+
+# Which grid axes a quantity actually responds to. coupling / bayes_auc_target /
+# prevalence enter only the label layer, so every feature-derived quantity is identical
+# across all 27 cells for a given seed: those rows are one 5-seed comparison replicated 23
+# times, not 23 independent comparisons. Verified: a single distinct value across cells.
+VARIES_WITH = {q: "label_layer" for q in SCALARS}
+VARIES_WITH.update({f"{r}__binding_rate": "features_only" for r in RULE_NAMES})
+VARIES_WITH["corr_core_trap"] = "features_only"
+VARIES_WITH["trap_variance_share"] = "coupling_only"
+
+
+def sampler_bias_check(reps: int = 400, n: int = 50_000) -> dict:
+    """Are the two label samplers themselves biased? ``rng.random(n) < p`` vs binomial.
+
+    A systematic offset in realised prevalence would show up here first, so it is measured
+    rather than assumed away.
+    """
+    from scipy import stats
+
+    p = dgp.expit(np.random.default_rng(0).normal(-2.2, 1.0, n))
+    ours_rng, ref_rng = np.random.default_rng(1), np.random.default_rng(2)
+    a = np.array([(ours_rng.random(p.size) < p).mean() for _ in range(reps)])
+    b = np.array([ref_rng.binomial(1, p).mean() for _ in range(reps)])
+    test = stats.ttest_ind(a, b, equal_var=False)
+    return {
+        "reps": reps, "n": n, "target_mean_p": float(p.mean()),
+        "ours_mean": float(a.mean()), "ours_bias": float(a.mean() - p.mean()),
+        "reference_mean": float(b.mean()), "reference_bias": float(b.mean() - p.mean()),
+        "welch_t": float(test.statistic), "welch_p": float(test.pvalue),
+        "verdict": "no detectable bias in either sampler" if test.pvalue > 0.01
+                   else "sampler difference detected",
+    }
+
+
+def _load_reference():
+    spec = importlib.util.spec_from_file_location("dgp_frozen", ROOT / "reference" / "dgp_frozen.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+ref = _load_reference()
+
+
+def _quantities(manifest: dict, rule_key: str) -> dict[str, float]:
+    """Flatten a manifest to the comparable scalars. ``rule_key`` bridges name vs rule."""
+    out = {k: float(manifest[k]) for k in SCALARS}
+    rates = {r[rule_key]: r["binding_rate"] for r in manifest["rules"]}
+    out.update({f"{name}__binding_rate": float(rates[name]) for name in RULE_NAMES})
+    return out
+
+
+def _run(module, cfg_cls, rule_key: str, **kwargs) -> tuple[dict | None, str]:
+    try:
+        _, _, manifest = module.generate(cfg_cls(**kwargs))
+        return _quantities(manifest, rule_key), ""
+    except Exception as exc:
+        return None, f"{type(exc).__name__}: {exc}"
+
+
+def build_table() -> tuple[pd.DataFrame, list[dict]]:
+    rows: list[dict] = []
+    divergences: list[dict] = []
+
+    for coupling in COUPLINGS:
+        for target in TARGETS:
+            for prevalence in PREVALENCES:
+                kwargs = dict(n_samples=N_SAMPLES, coupling=coupling,
+                              bayes_auc_target=target, prevalence=prevalence)
+                ours: list[dict] = []
+                theirs: list[dict] = []
+                our_errors: list[str] = []
+                their_errors: list[str] = []
+
+                for seed in SEEDS:
+                    o, oe = _run(dgp, DGPConfig, "name", seed=seed, **kwargs)
+                    t, te = _run(ref, ref.DGPConfig, "rule", seed=seed, **kwargs)
+                    (ours.append(o) if o else our_errors.append(oe))
+                    (theirs.append(t) if t else their_errors.append(te))
+
+                cell = {"coupling": coupling, "bayes_auc_target": target, "prevalence": prevalence}
+
+                if our_errors or their_errors:
+                    divergences.append({
+                        **cell,
+                        "n_ours_raised": len(our_errors),
+                        "n_reference_raised": len(their_errors),
+                        "ours_error": our_errors[0] if our_errors else "",
+                        "reference_error": their_errors[0] if their_errors else "",
+                        "agreed_on_refusal": bool(our_errors) and bool(their_errors),
+                    })
+
+                n_compared = min(len(ours), len(theirs))
+                for quantity in QUANTITIES:
+                    row = {**cell, "quantity": quantity,
+                           "varies_with": VARIES_WITH[quantity],
+                           "grid_invariant": VARIES_WITH[quantity] == "features_only",
+                           "n_seeds_compared": n_compared,
+                           "n_ours_raised": len(our_errors),
+                           "n_reference_raised": len(their_errors)}
+                    if n_compared == 0:
+                        row.update(
+                            mean_ours=np.nan, mean_reference=np.nan, sd_ours=np.nan,
+                            sd_reference=np.nan, mean_abs_diff=np.nan, max_abs_diff=np.nan,
+                            mean_diff=np.nan, se_mean_diff=np.nan, z_mean_diff=np.nan,
+                            noise_floor=np.nan, noise_floor_exceeded=False,
+                        )
+                    else:
+                        a = np.array([m[quantity] for m in ours[:n_compared]])
+                        b = np.array([m[quantity] for m in theirs[:n_compared]])
+                        diff = np.abs(a - b)
+                        sd_a, sd_b = float(a.std(ddof=1)), float(b.std(ddof=1))
+
+                        # Seed s gives independent samples in the two implementations (the
+                        # RNG orders differ), so |a-b| has expectation ~1.13*sd even under
+                        # perfect agreement -- comparing mean|a-b| against sd would flag
+                        # everything. What a real difference looks like is a systematic
+                        # offset in the mean, so test that: |mean(a) - mean(b)| against
+                        # 3 standard errors of the difference of means.
+                        mean_diff = float(a.mean() - b.mean())
+                        se = float(np.sqrt(sd_a**2 / n_compared + sd_b**2 / n_compared))
+                        floor = 3.0 * se
+                        exceeded = abs(mean_diff) > floor if se > 0 else abs(mean_diff) > 0.0
+                        row.update(
+                            mean_ours=float(a.mean()), mean_reference=float(b.mean()),
+                            sd_ours=sd_a, sd_reference=sd_b,
+                            mean_abs_diff=float(diff.mean()), max_abs_diff=float(diff.max()),
+                            mean_diff=mean_diff, se_mean_diff=se,
+                            z_mean_diff=abs(mean_diff) / se if se > 0 else np.nan,
+                            noise_floor=floor, noise_floor_exceeded=bool(exceeded),
+                        )
+                    rows.append(row)
+
+    return pd.DataFrame(rows), divergences
+
+
+def _flag_calibration(compared: pd.DataFrame) -> dict:
+    """How many flags to expect under perfect agreement, given the statistic's real tails.
+
+    |mean_diff| / se with k seeds is t-like with about 2(k-1) df, not normal; using a
+    normal 3-sigma reading understates the expected false-positive count several-fold.
+    """
+    from scipy import stats
+
+    k = len(list(SEEDS))
+    df = 2 * (k - 1)
+    n_comp = int(len(compared))
+    p_t = float(2 * stats.t.sf(3.0, df))
+    flagged = compared[compared.noise_floor_exceeded]
+    return {
+        "threshold_sigma": 3.0,
+        "approx_df": df,
+        "n_comparisons": n_comp,
+        "p_flag_under_agreement_t": p_t,
+        "expected_flags_under_agreement": round(p_t * n_comp, 1),
+        "expected_flags_if_statistic_were_normal": round(float(2 * stats.norm.sf(3.0)) * n_comp, 1),
+        "observed_flags": int(len(flagged)),
+        "observed_flags_excluding_expected_bayes_auc": int(
+            len(flagged[flagged.quantity != "expected_bayes_auc"])
+        ),
+        "note": (
+            "expected_bayes_auc flags are a solver-tolerance artifact, not a behavioural "
+            "difference: both implementations hit the target to their own convergence "
+            "tolerance (ours xtol=1e-10, reference xtol=1e-8), so the across-seed sd is "
+            "~1e-12 and any offset is 'significant' at a magnitude around 1e-10."
+        ),
+    }
+
+
+if __name__ == "__main__":
+    print("exporting differential comparison (n=200000, this takes a couple of minutes)...")
+    t0 = time.perf_counter()
+    frame, divergences = build_table()
+    elapsed = time.perf_counter() - t0
+
+    compared = frame[frame.n_seeds_compared > 0]
+    flagged = compared[compared.noise_floor_exceeded]
+    worst = (
+        compared.groupby("quantity")[["mean_abs_diff", "max_abs_diff", "noise_floor", "z_mean_diff"]]
+        .max().sort_values("z_mean_diff", ascending=False)
+    )
+
+    _write(
+        "s0_differential", frame, elapsed,
+        {
+            "comparison": "dgp.py (this implementation) vs reference/dgp_frozen.py",
+            "layer": "2 -- stochastic pipeline, distributional",
+            "n_samples": N_SAMPLES,
+            "seeds": list(SEEDS),
+            "grid": {"coupling": list(COUPLINGS), "bayes_auc_target": list(TARGETS),
+                     "prevalence": list(PREVALENCES)},
+            "quantities": QUANTITIES,
+            "method": (
+                "Row-by-row comparison is impossible: the implementations consume the RNG "
+                "in different orders (rng.random(n) < p vs rng.binomial(1, p, n)), so the "
+                "same seed gives different samples. Each quantity is compared across seeds "
+                "0-4 and reported with the across-seed sd of each implementation. "
+"Because seed s gives independent samples in the two implementations, "
+                "mean|a-b| has expectation ~1.13*sd even under perfect agreement, so it is "
+                "reported but not used as the flag. noise_floor = 3 * se of the difference "
+                "of means, se = sqrt(sd_ours^2/k + sd_reference^2/k) over k seeds; "
+                "noise_floor_exceeded = |mean_ours - mean_reference| > noise_floor, i.e. a "
+                "systematic offset rather than ordinary scatter. No pass/fail tolerance is "
+                "imposed."
+            ),
+            "binomial_se_at_n": float(np.sqrt(0.1 * 0.9 / N_SAMPLES)),
+            "n_cells_compared": int(compared.n_seeds_compared.gt(0).sum()),
+            "flag_calibration": _flag_calibration(compared),
+            "sampler_bias_check": sampler_bias_check(),
+            "replication_caveat": (
+                "Rows with grid_invariant=True (six binding rates, corr_core_trap) are "
+                "feature-derived and therefore identical across all grid cells for a given "
+                "seed. Their 23 rows are one 5-seed comparison replicated, so consistent "
+                "signs across those rows carry no additional evidence."
+            ),
+            "n_quantities_exceeding_noise_floor": int(len(flagged)),
+            "quantities_exceeding_noise_floor": sorted(flagged.quantity.unique().tolist()),
+            "max_abs_diff_by_quantity": {
+                q: float(worst.loc[q, "max_abs_diff"]) for q in worst.index
+            },
+            "max_z_mean_diff_by_quantity": {
+                q: (None if np.isnan(worst.loc[q, "z_mean_diff"]) else float(worst.loc[q, "z_mean_diff"]))
+                for q in worst.index
+            },
+            "expected_divergences": divergences,
+        },
+    )
+
+    print(f"\n  cells where a quantity exceeded its noise floor: {len(flagged)} / {len(compared)}")
+    for d in divergences:
+        print(f"  divergence: coupling={d['coupling']} target={d['bayes_auc_target']} "
+              f"prev={d['prevalence']}  ours_raised={d['n_ours_raised']} "
+              f"ref_raised={d['n_reference_raised']} agreed={d['agreed_on_refusal']}")
+    print(f"\n  worst max_abs_diff by quantity:\n{worst.head(12).to_string()}")

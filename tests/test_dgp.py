@@ -13,6 +13,8 @@ justified in-line where they are used:
 
 from __future__ import annotations
 
+import re
+
 import numpy as np
 import pytest
 
@@ -153,21 +155,27 @@ def test_unreachable_auc_raises():
     """An unreachable AUC target raises a clear error rather than returning garbage.
 
     At coupling=1.0 the score is a function of four binary variables, so it takes only
-    16 distinct values and tied pairs cap the achievable AUC. At prevalence 0.30 the max
-    achievable within the solver's gamma ceiling of 30 is 0.9034, so 0.95 raises.
+    16 distinct values and tied pairs cap the achievable AUC.
 
-    Precisely: this is a *solver window* limit, not a hard structural one. The exact
-    gamma -> infinity limit here is 0.9751 (see results/s0_coupling1_ceiling.csv), which is
-    above 0.95 -- but 50.9% of the mass sits in a single z level, so the approach to that
-    limit is far too slow to be usable (0.9034 at gamma=30, still only 0.9186 at gamma=80).
-    Refusing is the right behaviour; the error reports the max achievable and the gamma.
+    This is a *solver window* limit, not a hard structural one: the exact gamma -> infinity
+    limit at prevalence 0.30 is above 0.95, but most of the mass sits in a single z level,
+    so the approach to that limit is far too slow to be usable. Refusing is the right
+    behaviour, and the error reports the max achievable and the gamma it was measured at.
+    Measured ceilings live in results/s0_coupling1_ceiling.csv (with the n and seed they
+    were taken at, since the level masses are seed-dependent) -- this docstring deliberately
+    quotes none of them.
 
-    (0.999 -- the spec's original example -- is *not* unreachable: at the default config
-    it solves cleanly at gamma ~= 20, comfortably under the solver's gamma ceiling of 30.)
+    (0.999 -- the spec's original example -- is *not* unreachable: at the default config it
+    solves cleanly well under the solver's gamma ceiling.)
     """
-    with pytest.raises(ValueError, match=r"unreachable for this score.*max achievable"):
+    with pytest.raises(ValueError, match=r"unreachable for this score.*max achievable") as excinfo:
         generate(DGPConfig(n_samples=5000, coupling=1.0, prevalence=0.30,
                            bayes_auc_target=0.95, seed=0))
+
+    # Assert the reported ceiling rather than narrating it: it must be a real number
+    # below the requested target, which is the whole justification for refusing.
+    reported = float(re.search(r"max achievable ([0-9.]+)", str(excinfo.value)).group(1))
+    assert 0.5 < reported < 0.95
 
 
 def test_alpha_failure_is_translated(monkeypatch):
@@ -226,8 +234,8 @@ def test_assert_valid_gates():
 
 
 # The single grid cell whose AUC target exceeds what is achievable within the solver's
-# gamma ceiling. See test_unreachable_auc_raises for why coupling=1.0 caps out at 0.9034
-# at prevalence 0.30 -- and why that is a solver-window limit, not a structural one.
+# gamma ceiling. See test_unreachable_auc_raises for why, and
+# results/s0_coupling1_ceiling.csv for the measured ceilings.
 _UNREACHABLE_CELL = (1.0, 0.95, 0.30)
 
 

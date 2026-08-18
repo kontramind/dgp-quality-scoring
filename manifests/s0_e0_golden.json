@@ -1,7 +1,7 @@
 {
   "artifact": "s0_e0_golden",
   "stage": "S0",
-  "git_sha_at_run": "07f75bbf850a04b2c03b4fa4db7213c65870c578",
+  "git_sha_at_run": "bfe92e28f7580e5efbb7ea62a9623aceabcad1af",
   "git_branch": "main",
   "git_dirty": true,
   "git_note": "SHA is HEAD at run time. The S0 run necessarily predates the commit that introduces it, so a dirty tree here is expected, not a provenance gap.",
@@ -13,7 +13,7 @@
     "scipy": "1.18.0",
     "pytest": "9.1.1"
   },
-  "wall_time_seconds": 0.754,
+  "wall_time_seconds": 0.654,
   "output_paths": {
     "csv": "results/s0_e0_golden.csv",
     "manifest": "manifests/s0_e0_golden.json"

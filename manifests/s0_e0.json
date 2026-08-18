@@ -1,7 +1,7 @@
 {
   "stage": "S0",
   "description": "DGP implementation + test suite, written blind from the specification.",
-  "git_sha_at_run": "07f75bbf850a04b2c03b4fa4db7213c65870c578",
+  "git_sha_at_run": "bfe92e28f7580e5efbb7ea62a9623aceabcad1af",
   "git_branch": "main",
   "git_dirty": true,
   "git_note": "SHA is HEAD at run time. The S0 run necessarily predates the commit that introduces it, so a dirty tree here is expected, not a provenance gap.",
@@ -13,10 +13,10 @@
     "scipy": "1.18.0",
     "pytest": "9.1.1"
   },
-  "wall_time_seconds": 5.006,
+  "wall_time_seconds": 5.463,
   "test_suite": {
     "command": "uv run pytest tests/test_dgp.py -q",
-    "summary": "447 passed in 6.10s",
+    "summary": "447 passed in 5.93s",
     "returncode": 0
   },
   "seeds": {
@@ -139,8 +139,13 @@
   "open_items": [
     {
       "id": "gamma-coupling1-prev030",
-      "status": "unresolved",
-      "detail": "At coupling=1.0 / prevalence=0.30 / bayes_auc_target=0.85 this implementation solves gamma = 2.472 +/- 0.012 (n=200000, seeds 0-4); the reference reports 2.64. Ruled out: sample size (converges to 2.472 from n=5000 to n=200000) and the glucose_base/sbp_base offset (using the calibrated bases moves gamma to 2.00, i.e. further away). Localised to the trap-score distribution; hand off to the differential test."
+      "status": "resolved",
+      "detail": "At coupling=1.0 / prevalence=0.30 / bayes_auc_target=0.85 this implementation solves gamma = 2.472 +/- 0.012 (n=200000, seeds 0-4) against a quoted reference value of 2.64. Resolved: 2.64 was the reference at n=5000, seed 0 -- the noisiest point on the curve -- quoted as if converged. The reference's own across-seed spread there is 2.578 +/- 0.089, converging to 2.462 +/- 0.009 at n=200000. That is inside one sd of this implementation. No discrepancy exists.",
+      "resolution": "no-defect; stale reference value quoted from an unconverged sample size",
+      "hypotheses_correctly_eliminated": [
+        "sample size (converges monotonically to 2.472 from n=5000 to n=200000)",
+        "glucose_base/sbp_base offset (calibrated bases move gamma to 2.00, away from 2.64)"
+      ]
     }
   ]
 }

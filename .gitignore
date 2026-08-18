@@ -1,3 +1,6 @@
 .venv/
 __pycache__/
 *.pyc
+
+# Claude Code local state — never committed unless explicitly intended
+.claude/

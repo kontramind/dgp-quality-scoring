@@ -23,9 +23,13 @@ manifests/                  one run manifest per artifact, plus the stage manife
 ```bash
 uv sync
 uv run pytest tests/ -q
-uv run python scripts/export_s0.py
-uv run python scripts/export_differential.py
+uv run python scripts/export_all.py     # all exports in one process
 ```
+
+Individual exports (`scripts/export_s0.py`, `scripts/export_differential.py`) can be run
+on their own, but use `export_all.py` for the provenance pass below: provenance is stamped
+once per process, so running the scripts in sequence would let each one dirty the tree for
+the next and only the first manifest would carry a clean stamp.
 
 ## Conventions
 
@@ -46,8 +50,8 @@ first commit's manifests are always dirty. The pattern is therefore:
 
 1. Commit code and results. The manifests in this commit carry `git_dirty: true` and the
    SHA of the *previous* commit.
-2. Re-run the exports against the now-clean tree and commit the regenerated manifests as a
-   second commit.
+2. Re-run `scripts/export_all.py` against the now-clean tree and commit the regenerated
+   manifests as a second commit.
 
 After step 2 the published manifest carries a clean SHA that actually contains the code
 that produced it. Both commits are kept: the first is the run, the second is its

@@ -1,7 +1,7 @@
 {
   "stage": "S0",
   "description": "DGP implementation + test suite, written blind from the specification.",
-  "git_sha_at_run": "a37cb165f6ca7bde829d75f04b176165feb4c1cd",
+  "git_sha_at_run": "3d8d156a5170772980a9a557f0d4a4abb785b462",
   "git_branch": "main",
   "git_dirty": true,
   "git_note": "SHA is HEAD at run time. The S0 run necessarily predates the commit that introduces it, so a dirty tree here is expected, not a provenance gap.",
@@ -13,10 +13,10 @@
     "scipy": "1.18.0",
     "pytest": "9.1.1"
   },
-  "wall_time_seconds": 5.544,
+  "wall_time_seconds": 7919.108,
   "test_suite": {
-    "command": "uv run pytest tests/test_dgp.py -q",
-    "summary": "447 passed in 5.66s",
+    "command": "uv run pytest tests -q",
+    "summary": "466 passed in 8.07s",
     "returncode": 0
   },
   "seeds": {

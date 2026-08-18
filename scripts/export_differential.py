@@ -211,8 +211,7 @@ def _flag_calibration(compared: pd.DataFrame) -> dict:
     }
 
 
-if __name__ == "__main__":
-    print("exporting differential comparison (n=200000, this takes a couple of minutes)...")
+def run() -> None:
     t0 = time.perf_counter()
     frame, divergences = build_table()
     elapsed = time.perf_counter() - t0
@@ -276,3 +275,8 @@ if __name__ == "__main__":
               f"prev={d['prevalence']}  ours_raised={d['n_ours_raised']} "
               f"ref_raised={d['n_reference_raised']} agreed={d['agreed_on_refusal']}")
     print(f"\n  worst max_abs_diff by quantity:\n{worst.head(12).to_string()}")
+
+
+if __name__ == "__main__":
+    print("exporting differential comparison (n=200000, this takes a couple of minutes)...")
+    run()

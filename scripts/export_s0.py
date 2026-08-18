@@ -12,6 +12,7 @@ import json
 import platform
 import subprocess
 import sys
+from functools import cache
 import time
 from dataclasses import asdict
 from importlib.metadata import version
@@ -37,7 +38,14 @@ def _git(*args: str) -> str:
     return subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True).stdout.strip()
 
 
+@cache
 def _provenance() -> dict:
+    """Captured once per process, before anything is written.
+
+    Every artifact from one run must carry the same stamp. Calling this per-write instead
+    lets each export dirty the tree for the ones after it, so only the first manifest ever
+    reports a clean tree -- which silently defeats the two-commit pattern.
+    """
     dirty = bool(_git("status", "--porcelain"))
     return {
         "git_sha_at_run": _git("rev-parse", "HEAD"),
@@ -325,7 +333,7 @@ def write_run_manifest(calibrated: DGPConfig, wall_time: float) -> None:
     _, _, m = generate(cfg)
 
     suite = subprocess.run(
-        [sys.executable, "-m", "pytest", "tests/test_dgp.py", "-q"],
+        [sys.executable, "-m", "pytest", "tests", "-q"],
         cwd=ROOT, capture_output=True, text=True,
     )
     summary = next(
@@ -338,7 +346,7 @@ def write_run_manifest(calibrated: DGPConfig, wall_time: float) -> None:
         "description": "DGP implementation + test suite, written blind from the specification.",
         **_provenance(),
         "wall_time_seconds": round(wall_time, 3),
-        "test_suite": {"command": "uv run pytest tests/test_dgp.py -q", "summary": summary.strip(),
+        "test_suite": {"command": "uv run pytest tests -q", "summary": summary.strip(),
                        "returncode": suite.returncode},
         "seeds": {"calibration": 0, "e0_generation": list(range(5)), "config_grid": list(range(8))},
         "config": asdict(cfg),

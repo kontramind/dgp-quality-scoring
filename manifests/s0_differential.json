@@ -1,10 +1,10 @@
 {
   "artifact": "s0_differential",
   "stage": "S0",
-  "git_sha_at_run": "a74d92d4ac1755a428c36c12c36dcb92fa85ba4b",
+  "git_sha_at_run": "59dce7b9f52843a55018cd19ae1aa8b30616cf6e",
   "git_branch": "main",
-  "git_dirty": false,
-  "git_note": "clean tree at run time",
+  "git_dirty": true,
+  "git_note": "SHA is HEAD at run time. The S0 run necessarily predates the commit that introduces it, so a dirty tree here is expected, not a provenance gap.",
   "python": "3.14.0",
   "platform": "Linux-7.0.11-76070011-generic-x86_64-with-glibc2.35",
   "packages": {
@@ -13,7 +13,7 @@
     "scipy": "1.18.0",
     "pytest": "9.1.1"
   },
-  "wall_time_seconds": 92.749,
+  "wall_time_seconds": 90.852,
   "output_paths": {
     "csv": "results/s0_differential.csv",
     "manifest": "manifests/s0_differential.json"
@@ -179,5 +179,106 @@
       "reference_error": "ValueError: bayes_auc_target=0.95 unreachable for this score.",
       "agreed_on_refusal": true
     }
-  ]
+  ],
+  "close_out": {
+    "verdict": "The implementations agree. No structural divergence survives on seeds that did not select the cell. Every behavioural difference is intentional and asserted in tests/test_differential.py.",
+    "flagged_cell_followup": {
+      "selection_contamination": "Seeds 0-4 are what selected these three cell-quantity pairs, so a re-run that includes them is contaminated by its own selection (winner's curse). The k=20 figure is recorded only to show the contamination; the k=15 fresh-seed figure is the valid estimate.",
+      "rule_for_future_sessions": "When re-examining a flagged cell, EXCLUDE the seeds that flagged it. A shrinking |t| is not itself a test -- report the fresh-seed estimate and its own t and p.",
+      "n_samples": 200000,
+      "selecting_seeds": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "fresh_seeds": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "cells": [
+        {
+          "cell": {
+            "coupling": 0.0,
+            "bayes_auc_target": 0.85,
+            "prevalence": 0.1
+          },
+          "quantity": "realised_prevalence",
+          "mean_diff_k5_selecting_seeds_0_4": -0.001351999999999992,
+          "mean_diff_k20_seeds_0_19_CONTAMINATED": -0.000540250000000006,
+          "mean_diff_k15_fresh_seeds_5_19": -0.0002696666666666542,
+          "shrink_factor_selecting_over_fresh": 5.013597033374739,
+          "t_fresh": -1.2449159686637095,
+          "p_fresh": 0.22565064094821816
+        },
+        {
+          "cell": {
+            "coupling": 0.0,
+            "bayes_auc_target": 0.95,
+            "prevalence": 0.3
+          },
+          "quantity": "solved_gamma",
+          "mean_diff_k5_selecting_seeds_0_4": -0.009002695292426033,
+          "mean_diff_k20_seeds_0_19_CONTAMINATED": -0.0025031778522990322,
+          "mean_diff_k15_fresh_seeds_5_19": -0.0003366720389230693,
+          "shrink_factor_selecting_over_fresh": 26.740252386932493,
+          "t_fresh": -0.1602273922001706,
+          "p_fresh": 0.8739892360161131
+        },
+        {
+          "cell": {
+            "coupling": 1.0,
+            "bayes_auc_target": 0.85,
+            "prevalence": 0.1
+          },
+          "quantity": "solved_gamma",
+          "mean_diff_k5_selecting_seeds_0_4": -0.001169947230900581,
+          "mean_diff_k20_seeds_0_19_CONTAMINATED": -0.0003461418017398632,
+          "mean_diff_k15_fresh_seeds_5_19": -7.153999201925387e-05,
+          "shrink_factor_selecting_over_fresh": 16.353751207935666,
+          "t_fresh": -0.17766214271817726,
+          "p_fresh": 0.8602956960251642
+        }
+      ]
+    },
+    "flag_is_significance_not_magnitude": {
+      "quantity": "solved_gamma",
+      "largest_absolute_difference": {
+        "cell": {
+          "coupling": 1.0,
+          "bayes_auc_target": 0.85,
+          "prevalence": 0.3
+        },
+        "mean_diff": 0.010613378119059824,
+        "noise_floor": 0.018382875451605555,
+        "flagged": false
+      },
+      "largest_flagged_difference": {
+        "cell": {
+          "coupling": 0.0,
+          "bayes_auc_target": 0.95,
+          "prevalence": 0.3
+        },
+        "mean_diff": -0.009002695292426033,
+        "noise_floor": 0.007551379205620398,
+        "flagged": true
+      },
+      "implication": "The largest divergence in the table is unflagged while a smaller one is flagged, because the flag divides by the across-seed se. The flag list is therefore not the largest-divergence list and must be read alongside mean_abs_diff / max_abs_diff, never on its own."
+    },
+    "sampler_equivalence": "Both label samplers are equivalent: rng.random(n) < p has error bounded by 2^-53. See sampler_bias_check; at higher draw budgets with fresh seeds the sign of the bias estimate flips, i.e. there is no bias."
+  }
 }

@@ -1,0 +1,125 @@
+{
+  "artifact": "s0_e0_golden",
+  "stage": "S0",
+  "git_sha_at_run": "07f75bbf850a04b2c03b4fa4db7213c65870c578",
+  "git_branch": "main",
+  "git_dirty": true,
+  "git_note": "SHA is HEAD at run time. The S0 run necessarily predates the commit that introduces it, so a dirty tree here is expected, not a provenance gap.",
+  "python": "3.14.0",
+  "platform": "Linux-7.0.11-76070011-generic-x86_64-with-glibc2.35",
+  "packages": {
+    "numpy": "2.5.2",
+    "pandas": "3.0.5",
+    "scipy": "1.18.0",
+    "pytest": "9.1.1"
+  },
+  "wall_time_seconds": 0.754,
+  "output_paths": {
+    "csv": "results/s0_e0_golden.csv",
+    "manifest": "manifests/s0_e0_golden.json"
+  },
+  "n_rows": 5,
+  "recipe": "cfg = solve_binding_rates({'R3_glucose_ceil': 0.08, 'R4_bp_mandatory': 0.20}); cfg.n_samples = 50000; generate(cfg)",
+  "calibration": {
+    "targets": {
+      "R3_glucose_ceil": 0.08,
+      "R4_bp_mandatory": 0.2
+    },
+    "n_probe": 40000,
+    "calibration_seed": 0,
+    "solved_glucose_base": 102.24436042572763,
+    "solved_sbp_base": 109.2249543910829,
+    "note": "Calibrated once at seed 0 and reused; the constants are part of the DGP design, not re-derived per draw."
+  },
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "config": {
+    "coupling": 0.5,
+    "bayes_auc_target": 0.85,
+    "prevalence": 0.1,
+    "n_nuisance": 0,
+    "nuisance_corr": 0.0,
+    "n_samples": 50000,
+    "seed": 0,
+    "age_range": [
+      30.0,
+      79.0
+    ],
+    "p_male": 0.5,
+    "p_smoker": 0.2,
+    "p_pregnant": 0.04,
+    "preg_age_max": 55.0,
+    "sd_bmi": 3.0,
+    "glucose_base": 102.24436042572763,
+    "sd_glucose": 15.0,
+    "sbp_base": 109.2249543910829,
+    "sd_sbp": 12.0,
+    "p_diabetic_midband": 0.15,
+    "meds_age_scale": 0.6,
+    "b_bmi_glucose": 0.7,
+    "b_hyperglyc_sbp": 1.76,
+    "b_age_bmi": 0.1,
+    "b_male_bmi": 2.0,
+    "b_age_sbp": 0.5,
+    "b_bmi_sbp": 1.2,
+    "b_smoker_sbp": 5.0,
+    "core_weights": {
+      "Age": 1.0,
+      "BMI": 0.3,
+      "Fasting_Glucose": 0.4,
+      "Systolic_BP": 0.6,
+      "Cigs_Per_Day": 0.5
+    },
+    "trap_weights": {
+      "Diabetic": 1.0,
+      "On_BP_Medication": -0.8,
+      "Is_Pregnant": 0.3,
+      "Current_Smoker": 0.7
+    }
+  },
+  "e0_diagnostics_seed0": {
+    "realised_prevalence": 0.09922,
+    "expected_bayes_auc": 0.8500000000004753,
+    "empirical_bayes_auc": 0.8503066564465828,
+    "total_violations_on_real": 0,
+    "binding_rates": {
+      "R1_smoker_cigs": 0.802,
+      "R2_glucose_floor": 0.37684,
+      "R3_glucose_ceil": 0.07952,
+      "R4_bp_mandatory": 0.20078,
+      "R5_anatomical": 0.50252,
+      "R6_preg_age": 0.0096
+    }
+  },
+  "binding_rate_ranges_over_seeds": {
+    "R1_smoker_cigs": [
+      0.79948,
+      0.80318
+    ],
+    "R2_glucose_floor": [
+      0.37684,
+      0.38394
+    ],
+    "R3_glucose_ceil": [
+      0.07878,
+      0.0825
+    ],
+    "R4_bp_mandatory": [
+      0.19814,
+      0.20078
+    ],
+    "R5_anatomical": [
+      0.49812,
+      0.50252
+    ],
+    "R6_preg_age": [
+      0.0096,
+      0.01074
+    ]
+  }
+}

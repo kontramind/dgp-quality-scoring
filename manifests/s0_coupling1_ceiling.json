@@ -1,0 +1,94 @@
+{
+  "artifact": "s0_coupling1_ceiling",
+  "stage": "S0",
+  "git_sha_at_run": "07f75bbf850a04b2c03b4fa4db7213c65870c578",
+  "git_branch": "main",
+  "git_dirty": true,
+  "git_note": "SHA is HEAD at run time. The S0 run necessarily predates the commit that introduces it, so a dirty tree here is expected, not a provenance gap.",
+  "python": "3.14.0",
+  "platform": "Linux-7.0.11-76070011-generic-x86_64-with-glibc2.35",
+  "packages": {
+    "numpy": "2.5.2",
+    "pandas": "3.0.5",
+    "scipy": "1.18.0",
+    "pytest": "9.1.1"
+  },
+  "wall_time_seconds": 0.401,
+  "output_paths": {
+    "csv": "results/s0_coupling1_ceiling.csv",
+    "manifest": "manifests/s0_coupling1_ceiling.json"
+  },
+  "n_rows": 57,
+  "config": {
+    "coupling": 1.0,
+    "bayes_auc_target": 0.85,
+    "prevalence": 0.1,
+    "n_nuisance": 0,
+    "nuisance_corr": 0.0,
+    "n_samples": 50000,
+    "seed": 0,
+    "age_range": [
+      30.0,
+      79.0
+    ],
+    "p_male": 0.5,
+    "p_smoker": 0.2,
+    "p_pregnant": 0.04,
+    "preg_age_max": 55.0,
+    "sd_bmi": 3.0,
+    "glucose_base": 95.0,
+    "sd_glucose": 15.0,
+    "sbp_base": 110.0,
+    "sd_sbp": 12.0,
+    "p_diabetic_midband": 0.15,
+    "meds_age_scale": 0.6,
+    "b_bmi_glucose": 0.7,
+    "b_hyperglyc_sbp": 1.76,
+    "b_age_bmi": 0.1,
+    "b_male_bmi": 2.0,
+    "b_age_sbp": 0.5,
+    "b_bmi_sbp": 1.2,
+    "b_smoker_sbp": 5.0,
+    "core_weights": {
+      "Age": 1.0,
+      "BMI": 0.3,
+      "Fasting_Glucose": 0.4,
+      "Systolic_BP": 0.6,
+      "Cigs_Per_Day": 0.5
+    },
+    "trap_weights": {
+      "Diabetic": 1.0,
+      "On_BP_Medication": -0.8,
+      "Is_Pregnant": 0.3,
+      "Current_Smoker": 0.7
+    }
+  },
+  "solver_gamma_max": 30.0,
+  "n_distinct_z_levels": 16,
+  "why": "At coupling=1.0 the score is a function of four binary variables, so it takes 16 distinct values. Tied pairs take half credit, which caps the achievable AUC at a prevalence-dependent ceiling that no gamma can beat.",
+  "largest_z_level_mass": 0.50848,
+  "ceiling_by_prevalence": {
+    "0.05": {
+      "auc_at_gamma_30": 0.9934520118911943,
+      "auc_at_gamma_80": 0.9940464690920864,
+      "exact_auc_gamma_infinity": 0.9944415157894738,
+      "boundary_level_mass": 0.04752,
+      "boundary_fill": 0.6271043771043773
+    },
+    "0.1": {
+      "auc_at_gamma_30": 0.9845568557134169,
+      "auc_at_gamma_80": 0.9847183408996634,
+      "exact_auc_gamma_infinity": 0.9879117333333334,
+      "boundary_level_mass": 0.11116,
+      "boundary_fill": 0.22813961856783035
+    },
+    "0.3": {
+      "auc_at_gamma_30": 0.9057492488918558,
+      "auc_at_gamma_80": 0.9244230208860648,
+      "exact_auc_gamma_infinity": 0.9745398333333333,
+      "boundary_level_mass": 0.50848,
+      "boundary_fill": 0.04322687224669614
+    }
+  },
+  "solver_window_vs_structural": "The grid cell coupling=1.0 / prevalence=0.30 / target=0.95 raises because 0.95 exceeds what is achievable at gamma <= 30 (0.9034), NOT because it is structurally impossible: the exact gamma -> infinity limit is 0.9751. With 50.9% of the mass in a single z level the approach to that limit is far too slow to be usable (still only 0.9186 at gamma=80), so refusing is correct."
+}

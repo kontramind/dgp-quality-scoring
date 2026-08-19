@@ -8,20 +8,34 @@ R7 (`Current_Smoker == 1 -> Cigs_Per_Day >= 1`) is a FILTER ONLY. dgp.py is not
 edited: dgp.RULES, check_rules and every binding rate in the record are unchanged.
 """
 import json
-import subprocess
+import sys
 import warnings
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 warnings.filterwarnings("ignore")
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score
+
+ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "scripts"))
+RESULTS = ROOT / "results"
+MANIFESTS = ROOT / "manifests"
+
 from dgp import generate, solve_binding_rates
+from export_s0 import _provenance  # noqa: E402  -- the repo's one provenance convention
 from copula_fix import GaussianCopulaDT
 from corrupt import TrueRisk
 from rules_tol import check_rules_tol
 
 N_SAMPLES = 40_000          # matches occ_cop.py
 SEEDS = range(5)
+
+# Stamp provenance before anything is written -- _provenance() reads `git status`,
+# so calling it after the CSV lands reports the tree this run itself dirtied.
+PROV = _provenance()
 
 cfg = solve_binding_rates({"R3_glucose_ceil": 0.08, "R4_bp_mandatory": 0.20})
 cfg.n_samples = N_SAMPLES
@@ -103,12 +117,7 @@ for rs in ["R1-R6", "R1-R6+R7"]:
 print("\nacross-seed sd of `excess`:")
 print(sd.round(5).to_string())
 
-raw.to_csv("occupancy_copula_r7.csv", index=False)
-try:
-    sha = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True,
-                         text=True).stdout.strip() or None
-except Exception:
-    sha = None
+raw.to_csv(RESULTS / "occupancy_copula_r7.csv", index=False)
 manifest = {
     "script": "occ_cop_r7.py",
     "purpose": "A4 rerun with R7 filter-only; does the 77.5% on-manifold share survive?",
@@ -131,8 +140,8 @@ manifest = {
     "shares": shares,
     "across_seed_sd_excess": {f"{a}|{b}|{c}": float(v)
                               for (a, b, c), v in sd.items()},
-    "git_sha": sha,
-    "outputs": ["occupancy_copula_r7.csv"],
+    **PROV,
+    "outputs": ["results/occupancy_copula_r7.csv"],
 }
-with open("occupancy_copula_r7_manifest.json", "w") as f:
+with open(MANIFESTS / "occupancy_copula_r7.json", "w") as f:
     json.dump(manifest, f, indent=2)

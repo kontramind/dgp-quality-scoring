@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from scipy.stats import norm
-from dgp import DGPConfig, generate, solve_binding_rates, check_rules
+from dgp import DGPConfig, generate, solve_binding_rates, evaluate_rules
 from density import log_density_X, _clip_atoms
 
 rng = np.random.default_rng(0)
@@ -90,9 +90,9 @@ bad["On_BP_Medication"] = 1.0
 bad_df = pd.DataFrame([bad])
 
 # confirm it is rule-clean
-rflags = check_rules(bad_df)
-viol_cols = [c for c in rflags.columns if c.endswith("__violated")]
-print("rule violations on constructed row:", rflags[viol_cols].sum(axis=1).iloc[0], "(expect 0)")
+summaries, flags, total = evaluate_rules(bad_df)
+assert total == 0, f"constructed row must violate no rule of R1-R6, got {total}"
+print("rule violations on constructed row:", total, "(expect 0)")
 
 logp_bad = log_density_X(bad_df, cfg)[0]
 pct = (logp_real < logp_bad).mean() * 100

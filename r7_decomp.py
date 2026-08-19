@@ -10,11 +10,21 @@ scored out-of-sample against that fixed floor, so the real-data row is a genuine
 with sampling noise rather than 0.0100/0.0500/0.1000 by construction.
 """
 import json
-import subprocess
+import sys
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
+
+ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "scripts"))
+RESULTS = ROOT / "results"
+MANIFESTS = ROOT / "manifests"
+
 from dgp import generate, solve_binding_rates
+from export_s0 import _provenance  # noqa: E402  -- the repo's one provenance convention
 from copula_fix import GaussianCopulaDT
 from rules_tol import check_rules_tol
 from density import log_density_X
@@ -23,6 +33,10 @@ DGP_SEED = 0
 N_SAMPLES = 50_000
 N_PROBE = 40_000
 COPULA_SEEDS = range(5)
+
+# Stamp provenance before anything is written -- _provenance() reads `git status`,
+# so calling it after the CSVs land reports the tree this run itself dirtied.
+PROV = _provenance()
 
 # ---- E0 config: calibrate at n_probe, then set n_samples (deliberate, per record) ----
 cfg = solve_binding_rates({"R3_glucose_ceil": 0.08, "R4_bp_mandatory": 0.20},
@@ -127,14 +141,9 @@ for key, label in [("r16", "copula, on-manifold under R1-R6"),
 
 tab = pd.DataFrame(rows)[["row_set", "n", "frac_density_zero",
                           "frac_below_p1", "frac_below_p5", "frac_below_p10"]]
-tab.to_csv("r7_decomp_results.csv", index=False)
-pd.DataFrame(diag).to_csv("r7_decomp_diagnostics.csv", index=False)
+tab.to_csv(RESULTS / "r7_decomp.csv", index=False)
+pd.DataFrame(diag).to_csv(RESULTS / "r7_decomp_diagnostics.csv", index=False)
 
-try:
-    sha = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True,
-                         text=True).stdout.strip() or None
-except Exception:
-    sha = None
 
 manifest = {
     "script": "r7_decomp.py",
@@ -156,10 +165,10 @@ manifest = {
     "R7_definition": "Current_Smoker == 1 -> Cigs_Per_Day >= 1 (filter only, not in dgp.RULES)",
     "rules_tol": 0.5,
     "across_seed_sd": sds,
-    "git_sha": sha,
-    "outputs": ["r7_decomp_results.csv", "r7_decomp_diagnostics.csv"],
+    **PROV,
+    "outputs": ["results/r7_decomp.csv", "results/r7_decomp_diagnostics.csv"],
 }
-with open("r7_decomp_manifest.json", "w") as f:
+with open(MANIFESTS / "r7_decomp.json", "w") as f:
     json.dump(manifest, f, indent=2)
 
 pd.set_option("display.width", 200)

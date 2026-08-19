@@ -40,6 +40,16 @@ the R7 gap is 4.6 points, so every conclusion in this line of work survives eith
 figure.
 
 **How to apply.** Treat the spread as unresolved. Use 0.86 in any band or error bar, and
-write "unresolved" rather than "noise" or "not a finding". It is cheap to settle later —
-a coupling sweep that supplies more DGP seeds would resolve it as a by-product, with no
-run commissioned specifically for it.
+write "unresolved" rather than "noise" or "not a finding".
+
+**Why 0.86 cannot simply be made derivable.** It came from a sandbox script that was
+never committed and that runs against `reference/dgp_frozen.py`. Committing that script
+would make the frozen reference a runtime dependency of something outside
+`tests/test_differential.py` and `scripts/export_differential.py`, which is a freeze-line
+breach — and this is a nuisance parameter, not worth one.
+
+**Exit.** Canonical's own 0.28 is the operative number; 0.86 is cited only because both
+are five-sample sds and neither settles the other. Ten canonical DGP seeds would make
+the frozen citation unnecessary altogether, at which point this entry is closed rather
+than merely carried. Not worth commissioning a run for on its own: the coupling sweep
+will supply more seeds as a by-product, and this entry should be revisited then.

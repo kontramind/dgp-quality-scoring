@@ -1,0 +1,80 @@
+{
+  "script": "r7_decomp.py",
+  "purpose": "Decompose rules-vs-density disagreement; R7 filter-only, dgp.py unedited.",
+  "dgp_config": {
+    "n_probe": 40000,
+    "n_samples": 50000,
+    "seed": 0,
+    "solve_binding_rates": {
+      "R3_glucose_ceil": 0.08,
+      "R4_bp_mandatory": 0.2
+    },
+    "glucose_base": 102.24436042572763,
+    "sbp_base": 109.2249543910829
+  },
+  "dgp_manifest_checks": {
+    "realised_prevalence": 0.09922,
+    "expected_bayes_auc": 0.8500000000004753,
+    "solved_gamma": 1.4586073083627364,
+    "total_violations_on_real": 0
+  },
+  "split": {
+    "test_size": 0.4,
+    "random_state": 0,
+    "stratify": "Heart_Disease_Risk",
+    "n_train": 30000,
+    "n_holdout": 20000
+  },
+  "density_floor": {
+    "source": "real train half",
+    "n": 30000,
+    "p1": -23.303524756978877,
+    "p5": -21.224853495951873,
+    "p10": -20.18589357910566
+  },
+  "copula_seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "R7_definition": "Current_Smoker == 1 -> Cigs_Per_Day >= 1 (filter only, not in dgp.RULES)",
+  "rules_tol": 0.5,
+  "across_seed_sd": {
+    "copula, on-manifold under R1-R6": {
+      "frac_density_zero": 0.00228090245862257,
+      "frac_below_p1": 0.002159461924303811,
+      "frac_below_p5": 0.0018946268703291882,
+      "frac_below_p10": 0.002014965854458666
+    },
+    "copula, on-manifold under R1-R6 + R7": {
+      "frac_density_zero": 0.0,
+      "frac_below_p1": 0.0004334103615499455,
+      "frac_below_p5": 0.001242182016400547,
+      "frac_below_p10": 0.0007772981339891471
+    },
+    "copula, on-manifold under R1-R6 + R7, positive density only": {
+      "frac_density_zero": 0.0,
+      "frac_below_p1": 0.0004334103615499455,
+      "frac_below_p5": 0.001242182016400547,
+      "frac_below_p10": 0.0007772981339891471
+    }
+  },
+  "git_sha_at_run": "df975da78ffcf7f375d4934543ed21ca1e2e3261",
+  "git_branch": "main",
+  "git_dirty": false,
+  "git_note": "clean tree at run time",
+  "python": "3.14.0",
+  "platform": "Linux-7.0.11-76070011-generic-x86_64-with-glibc2.35",
+  "packages": {
+    "numpy": "2.5.2",
+    "pandas": "3.0.5",
+    "scipy": "1.18.0",
+    "pytest": "9.1.1"
+  },
+  "outputs": [
+    "results/r7_decomp.csv",
+    "results/r7_decomp_diagnostics.csv"
+  ]
+}

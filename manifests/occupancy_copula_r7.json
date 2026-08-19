@@ -1,0 +1,81 @@
+{
+  "script": "occ_cop_r7.py",
+  "purpose": "A4 rerun with R7 filter-only; does the 77.5% on-manifold share survive?",
+  "baseline_arm": "reproduces occ_cop.py (config, n, split, seeds) for checkability",
+  "dgp_config": {
+    "n_samples": 40000,
+    "seed": 0,
+    "solve_binding_rates": {
+      "R3_glucose_ceil": 0.08,
+      "R4_bp_mandatory": 0.2
+    },
+    "glucose_base": 102.24436042572763,
+    "sbp_base": 109.2249543910829
+  },
+  "dgp_manifest_checks": {
+    "realised_prevalence": 0.0986,
+    "expected_bayes_auc": 0.8500000000005825,
+    "solved_gamma": 1.4619492755517172,
+    "total_violations_on_real": 0
+  },
+  "split": {
+    "test_size": 0.4,
+    "random_state": 0,
+    "stratify": "Heart_Disease_Risk",
+    "n_train": 24000,
+    "n_holdout": 16000
+  },
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "R7_definition": "Current_Smoker == 1 -> Cigs_Per_Day >= 1 (filter only, not in dgp.RULES)",
+  "rules_tol": 0.5,
+  "estimator": "excess = mean|y-p*| - 2*E[p*(1-p*)], computed within subset",
+  "shares": {
+    "R1-R6": {
+      "on_manifold_share_pct": 76.89333764015886,
+      "off_manifold_share_pct": 23.10666235984114,
+      "off_manifold_mass_pct": 26.7075,
+      "on_manifold_excess": 0.033499395420719155,
+      "off_manifold_excess": 0.027625603473947623
+    },
+    "R1-R6+R7": {
+      "on_manifold_share_pct": 72.29465681760588,
+      "off_manifold_share_pct": 27.705343182394117,
+      "off_manifold_mass_pct": 36.06916666666667,
+      "on_manifold_excess": 0.036106440849531476,
+      "off_manifold_excess": 0.024525409693179512
+    }
+  },
+  "across_seed_sd_excess": {
+    "REAL|R1-R6|ALL": 0.0,
+    "REAL|R1-R6|on-manifold": 0.0,
+    "REAL|R1-R6+R7|ALL": 0.0,
+    "REAL|R1-R6+R7|on-manifold": 0.0,
+    "copula|R1-R6|ALL": 0.0015372006585616875,
+    "copula|R1-R6|off-manifold": 0.0014370215817658299,
+    "copula|R1-R6|on-manifold": 0.0023915613671793134,
+    "copula|R1-R6+R7|ALL": 0.0015372006585616875,
+    "copula|R1-R6+R7|off-manifold": 0.001651563823682669,
+    "copula|R1-R6+R7|on-manifold": 0.0018155149489780165
+  },
+  "git_sha_at_run": "df975da78ffcf7f375d4934543ed21ca1e2e3261",
+  "git_branch": "main",
+  "git_dirty": false,
+  "git_note": "clean tree at run time",
+  "python": "3.14.0",
+  "platform": "Linux-7.0.11-76070011-generic-x86_64-with-glibc2.35",
+  "packages": {
+    "numpy": "2.5.2",
+    "pandas": "3.0.5",
+    "scipy": "1.18.0",
+    "pytest": "9.1.1"
+  },
+  "outputs": [
+    "results/occupancy_copula_r7.csv"
+  ]
+}

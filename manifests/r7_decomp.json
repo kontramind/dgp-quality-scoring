@@ -1,22 +1,56 @@
 {
   "script": "r7_decomp.py",
   "purpose": "Decompose rules-vs-density disagreement; R7 filter-only, dgp.py unedited.",
+  "design": "5 DGP seeds x 5 copula seeds. Calibration solved once at n_probe and reused across DGP seeds (E0 recipe). Aggregated to a per-DGP-seed mean over copula seeds first, then across DGP seeds. The real row is computed once per DGP seed and is absent from across_copula_seed_sd.",
   "dgp_config": {
     "n_probe": 40000,
     "n_samples": 50000,
-    "seed": 0,
+    "dgp_seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
     "solve_binding_rates": {
       "R3_glucose_ceil": 0.08,
       "R4_bp_mandatory": 0.2
     },
+    "calibration": "solved once, reused across DGP seeds (E0 recipe)",
     "glucose_base": 102.24436042572763,
     "sbp_base": 109.2249543910829
   },
-  "dgp_manifest_checks": {
-    "realised_prevalence": 0.09922,
-    "expected_bayes_auc": 0.8500000000004753,
-    "solved_gamma": 1.4586073083627364,
-    "total_violations_on_real": 0
+  "dgp_manifest_checks_by_dgp_seed": {
+    "0": {
+      "realised_prevalence": 0.09922,
+      "expected_bayes_auc": 0.8500000000004753,
+      "solved_gamma": 1.4586073083627364,
+      "total_violations_on_real": 0
+    },
+    "1": {
+      "realised_prevalence": 0.10048,
+      "expected_bayes_auc": 0.8500000000004797,
+      "solved_gamma": 1.4585733746775145,
+      "total_violations_on_real": 0
+    },
+    "2": {
+      "realised_prevalence": 0.10026,
+      "expected_bayes_auc": 0.8500000000004362,
+      "solved_gamma": 1.4557871304484318,
+      "total_violations_on_real": 0
+    },
+    "3": {
+      "realised_prevalence": 0.09978,
+      "expected_bayes_auc": 0.8500000000004585,
+      "solved_gamma": 1.457375696747657,
+      "total_violations_on_real": 0
+    },
+    "4": {
+      "realised_prevalence": 0.1,
+      "expected_bayes_auc": 0.8500000000003622,
+      "solved_gamma": 1.4531576281281307,
+      "total_violations_on_real": 0
+    }
   },
   "split": {
     "test_size": 0.4,
@@ -26,11 +60,39 @@
     "n_holdout": 20000
   },
   "density_floor": {
-    "source": "real train half",
-    "n": 30000,
-    "p1": -23.303524756978877,
-    "p5": -21.224853495951873,
-    "p10": -20.18589357910566
+    "source": "real train half, refitted per DGP seed",
+    "by_dgp_seed": {
+      "0": {
+        "n": 30000,
+        "p1": -23.303524756978877,
+        "p5": -21.224853495951873,
+        "p10": -20.18589357910566
+      },
+      "1": {
+        "n": 30000,
+        "p1": -23.340102084672566,
+        "p5": -21.25849942567306,
+        "p10": -20.154884640444504
+      },
+      "2": {
+        "n": 30000,
+        "p1": -23.285774142572755,
+        "p5": -21.225800520483084,
+        "p10": -20.16723503886578
+      },
+      "3": {
+        "n": 30000,
+        "p1": -23.264349921518974,
+        "p5": -21.174585897004352,
+        "p10": -20.129255746277234
+      },
+      "4": {
+        "n": 30000,
+        "p1": -23.33097668095147,
+        "p5": -21.19790677511208,
+        "p10": -20.106380603754204
+      }
+    }
   },
   "copula_seeds": [
     0,
@@ -41,27 +103,183 @@
   ],
   "R7_definition": "Current_Smoker == 1 -> Cigs_Per_Day >= 1 (filter only, not in dgp.RULES)",
   "rules_tol": 0.5,
-  "across_seed_sd": {
-    "copula, on-manifold under R1-R6": {
-      "frac_density_zero": 0.00228090245862257,
-      "frac_below_p1": 0.002159461924303811,
-      "frac_below_p5": 0.0018946268703291882,
-      "frac_below_p10": 0.002014965854458666
-    },
-    "copula, on-manifold under R1-R6 + R7": {
+  "cell_means": {
+    "real": {
+      "n": 20000.0,
       "frac_density_zero": 0.0,
-      "frac_below_p1": 0.0004334103615499455,
-      "frac_below_p5": 0.001242182016400547,
-      "frac_below_p10": 0.0007772981339891471
+      "frac_below_p1": 0.01012,
+      "frac_below_p5": 0.05064,
+      "frac_below_p10": 0.10133
     },
-    "copula, on-manifold under R1-R6 + R7, positive density only": {
+    "r16": {
+      "n": 22104.08,
+      "frac_density_zero": 0.125876958587634,
+      "frac_below_p1": 0.13393402548059102,
+      "frac_below_p5": 0.1614076066542775,
+      "frac_below_p10": 0.19274383065436482
+    },
+    "r16_r7": {
+      "n": 19321.64,
       "frac_density_zero": 0.0,
-      "frac_below_p1": 0.0004334103615499455,
-      "frac_below_p5": 0.001242182016400547,
-      "frac_below_p10": 0.0007772981339891471
+      "frac_below_p1": 0.00921720317867097,
+      "frac_below_p5": 0.04064626196161878,
+      "frac_below_p10": 0.07649572021603991
+    },
+    "r16_r7_pos": {
+      "n": 19321.64,
+      "frac_density_zero": 0.0,
+      "frac_below_p1": 0.00921720317867097,
+      "frac_below_p5": 0.04064626196161878,
+      "frac_below_p10": 0.07649572021603991
     }
   },
-  "git_sha_at_run": "df975da78ffcf7f375d4934543ed21ca1e2e3261",
+  "across_dgp_seed_sd": {
+    "real": {
+      "n": 0.0,
+      "frac_density_zero": 0.0,
+      "frac_below_p1": 0.0007653430603330773,
+      "frac_below_p5": 0.0030198095966467837,
+      "frac_below_p10": 0.0025803585022240597
+    },
+    "r16": {
+      "n": 37.63046638031479,
+      "frac_density_zero": 0.0010381180798276007,
+      "frac_below_p1": 0.0011855146319319338,
+      "frac_below_p5": 0.0013907581042458196,
+      "frac_below_p10": 0.0012244763001342948
+    },
+    "r16_r7": {
+      "n": 54.93694567410915,
+      "frac_density_zero": 0.0,
+      "frac_below_p1": 0.00028654240113266136,
+      "frac_below_p5": 0.0004957848874529698,
+      "frac_below_p10": 0.0009799069152582694
+    },
+    "r16_r7_pos": {
+      "n": 54.93694567410915,
+      "frac_density_zero": 0.0,
+      "frac_below_p1": 0.00028654240113266136,
+      "frac_below_p5": 0.0004957848874529698,
+      "frac_below_p10": 0.0009799069152582694
+    }
+  },
+  "across_copula_seed_sd": {
+    "r16": {
+      "n": 81.70691136718287,
+      "frac_density_zero": 0.001737916562097459,
+      "frac_below_p1": 0.0016356862694732195,
+      "frac_below_p5": 0.0012538699632147314,
+      "frac_below_p10": 0.0017897344974976137
+    },
+    "r16_r7": {
+      "n": 52.23013895579045,
+      "frac_density_zero": 0.0,
+      "frac_below_p1": 0.000487639754726346,
+      "frac_below_p5": 0.001134350473249425,
+      "frac_below_p10": 0.000943908203755426
+    },
+    "r16_r7_pos": {
+      "n": 52.23013895579045,
+      "frac_density_zero": 0.0,
+      "frac_below_p1": 0.000487639754726346,
+      "frac_below_p5": 0.001134350473249425,
+      "frac_below_p10": 0.000943908203755426
+    }
+  },
+  "sign_condition_3_by_dgp_seed": {
+    "0": {
+      "pre_R7_frac_density_zero_on_manifold": 0.12592436219506065,
+      "post_R7_frac_density_zero_on_manifold": 0.0
+    },
+    "1": {
+      "pre_R7_frac_density_zero_on_manifold": 0.12647356394219728,
+      "post_R7_frac_density_zero_on_manifold": 0.0
+    },
+    "2": {
+      "pre_R7_frac_density_zero_on_manifold": 0.12571940828255201,
+      "post_R7_frac_density_zero_on_manifold": 0.0
+    },
+    "3": {
+      "pre_R7_frac_density_zero_on_manifold": 0.1270138431002268,
+      "post_R7_frac_density_zero_on_manifold": 0.0
+    },
+    "4": {
+      "pre_R7_frac_density_zero_on_manifold": 0.12425361541813337,
+      "post_R7_frac_density_zero_on_manifold": 0.0
+    }
+  },
+  "exact_conditions_by_dgp_seed": {
+    "0": {
+      "frac_density_zero_exactly_zero_rows_1_3_4": true,
+      "rows_3_and_4_identical": true,
+      "r7_never_fires_on_real": true
+    },
+    "1": {
+      "frac_density_zero_exactly_zero_rows_1_3_4": true,
+      "rows_3_and_4_identical": true,
+      "r7_never_fires_on_real": true
+    },
+    "2": {
+      "frac_density_zero_exactly_zero_rows_1_3_4": true,
+      "rows_3_and_4_identical": true,
+      "r7_never_fires_on_real": true
+    },
+    "3": {
+      "frac_density_zero_exactly_zero_rows_1_3_4": true,
+      "rows_3_and_4_identical": true,
+      "r7_never_fires_on_real": true
+    },
+    "4": {
+      "frac_density_zero_exactly_zero_rows_1_3_4": true,
+      "rows_3_and_4_identical": true,
+      "r7_never_fires_on_real": true
+    }
+  },
+  "real_all_null": {
+    "targets": {
+      "frac_below_p1": 0.01,
+      "frac_below_p5": 0.05,
+      "frac_below_p10": 0.1
+    },
+    "by_dgp_seed": {
+      "0": {
+        "frac_below_p1": 0.0108,
+        "frac_below_p5": 0.05005,
+        "frac_below_p10": 0.09825
+      },
+      "1": {
+        "frac_below_p1": 0.00895,
+        "frac_below_p5": 0.0456,
+        "frac_below_p10": 0.0994
+      },
+      "2": {
+        "frac_below_p1": 0.0108,
+        "frac_below_p5": 0.0526,
+        "frac_below_p10": 0.10325
+      },
+      "3": {
+        "frac_below_p1": 0.01015,
+        "frac_below_p5": 0.0522,
+        "frac_below_p10": 0.1013
+      },
+      "4": {
+        "frac_below_p1": 0.0099,
+        "frac_below_p5": 0.05275,
+        "frac_below_p10": 0.10445
+      }
+    },
+    "mean": {
+      "frac_below_p1": 0.01012,
+      "frac_below_p5": 0.05064,
+      "frac_below_p10": 0.10133
+    },
+    "sd": {
+      "frac_below_p1": 0.0007653430603330773,
+      "frac_below_p5": 0.003019809596646782,
+      "frac_below_p10": 0.002580358502224059
+    }
+  },
+  "git_sha_at_run": "8365b2e03ad86d6e544c51f40521095591616706",
   "git_branch": "main",
   "git_dirty": false,
   "git_note": "clean tree at run time",

@@ -1,22 +1,30 @@
 {
   "script": "occ_cop_r7.py",
-  "purpose": "A4 rerun with R7 filter-only; does the 77.5% on-manifold share survive?",
-  "baseline_arm": "reproduces occ_cop.py (config, n, split, seeds) for checkability",
+  "purpose": "A4 rerun with R7 filter-only, across DGP seeds as well as copula seeds.",
+  "design": "5 DGP seeds x 5 copula seeds = 25 fits. Aggregated to a per-DGP-seed mean over copula seeds first, then across DGP seeds. REAL rows do not depend on the copula draw and are computed once per DGP seed.",
   "dgp_config": {
     "n_samples": 40000,
-    "seed": 0,
+    "dgp_seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
     "solve_binding_rates": {
       "R3_glucose_ceil": 0.08,
       "R4_bp_mandatory": 0.2
     },
+    "calibration": "solved once, reused across DGP seeds (E0 recipe)",
     "glucose_base": 102.24436042572763,
     "sbp_base": 109.2249543910829
   },
-  "dgp_manifest_checks": {
-    "realised_prevalence": 0.0986,
-    "expected_bayes_auc": 0.8500000000005825,
-    "solved_gamma": 1.4619492755517172,
-    "total_violations_on_real": 0
+  "expected_bayes_auc_by_dgp_seed": {
+    "0": 0.8500000000005825,
+    "1": 0.8500000000005971,
+    "2": 0.8500000000005543,
+    "3": 0.8500000000004173,
+    "4": 0.8500000000005863
   },
   "split": {
     "test_size": 0.4,
@@ -25,7 +33,7 @@
     "n_train": 24000,
     "n_holdout": 16000
   },
-  "seeds": [
+  "copula_seeds": [
     0,
     1,
     2,
@@ -35,35 +43,354 @@
   "R7_definition": "Current_Smoker == 1 -> Cigs_Per_Day >= 1 (filter only, not in dgp.RULES)",
   "rules_tol": 0.5,
   "estimator": "excess = mean|y-p*| - 2*E[p*(1-p*)], computed within subset",
+  "real_all_excess_null": {
+    "by_dgp_seed": {
+      "0": -0.0017240033750699768,
+      "1": 0.00044055094991402033,
+      "2": 0.0005819557667218478,
+      "3": -0.00020402396589139227,
+      "4": -0.0007619128047559598
+    },
+    "mean": -0.00033348668581629213,
+    "sd": 0.0009448565160606534,
+    "n_holdout": 16000,
+    "expectation": "exactly 0; y ~ Bernoulli(p*) on real data"
+  },
   "shares": {
     "R1-R6": {
-      "on_manifold_share_pct": 76.89333764015886,
-      "off_manifold_share_pct": 23.10666235984114,
-      "off_manifold_mass_pct": 26.7075,
-      "on_manifold_excess": 0.033499395420719155,
-      "off_manifold_excess": 0.027625603473947623
+      "on_manifold_share_pct_by_dgp_seed": [
+        76.89333764015886,
+        76.75170680530577,
+        76.73721133601468,
+        76.85193205530821,
+        76.19596550421596
+      ],
+      "on_manifold_share_pct_mean": 76.6860306682007,
+      "on_manifold_share_pct_sd": 0.28177833999483326,
+      "off_manifold_share_pct_mean": 23.3139693317993,
+      "off_manifold_mass_pct_mean": 26.66016666666667,
+      "on_manifold_excess_mean": 0.03527307117773919,
+      "off_manifold_excess_mean": 0.029506073370055036
     },
     "R1-R6+R7": {
-      "on_manifold_share_pct": 72.29465681760588,
-      "off_manifold_share_pct": 27.705343182394117,
-      "off_manifold_mass_pct": 36.06916666666667,
-      "on_manifold_excess": 0.036106440849531476,
-      "off_manifold_excess": 0.024525409693179512
+      "on_manifold_share_pct_by_dgp_seed": [
+        72.29465681760588,
+        71.5555571850578,
+        71.89175345495362,
+        70.94039051730243,
+        71.73130647307308
+      ],
+      "on_manifold_share_pct_mean": 71.68273288959855,
+      "on_manifold_share_pct_sd": 0.4969269918590901,
+      "off_manifold_share_pct_mean": 28.317267110401446,
+      "off_manifold_mass_pct_mean": 35.93883333333333,
+      "on_manifold_excess_mean": 0.03773941218801523,
+      "off_manifold_excess_mean": 0.026588573607414977
     }
   },
-  "across_seed_sd_excess": {
-    "REAL|R1-R6|ALL": 0.0,
-    "REAL|R1-R6|on-manifold": 0.0,
-    "REAL|R1-R6+R7|ALL": 0.0,
-    "REAL|R1-R6+R7|on-manifold": 0.0,
-    "copula|R1-R6|ALL": 0.0015372006585616875,
-    "copula|R1-R6|off-manifold": 0.0014370215817658299,
-    "copula|R1-R6|on-manifold": 0.0023915613671793134,
-    "copula|R1-R6+R7|ALL": 0.0015372006585616875,
-    "copula|R1-R6+R7|off-manifold": 0.001651563823682669,
-    "copula|R1-R6+R7|on-manifold": 0.0018155149489780165
+  "sign_conditions_by_dgp_seed": {
+    "0": {
+      "on_manifold_excess_rises": true,
+      "off_manifold_excess_falls": true,
+      "on_16": 0.033499395420719155,
+      "on_16_r7": 0.036106440849531476,
+      "off_16": 0.027625603473947623,
+      "off_16_r7": 0.024525409693179512
+    },
+    "1": {
+      "on_manifold_excess_rises": true,
+      "off_manifold_excess_falls": true,
+      "on_16": 0.0368302851450749,
+      "on_16_r7": 0.03922348294895377,
+      "off_16": 0.030789078084735588,
+      "off_16_r7": 0.02801883258248238
+    },
+    "2": {
+      "on_manifold_excess_rises": true,
+      "off_manifold_excess_falls": true,
+      "on_16": 0.03507135561038854,
+      "on_16_r7": 0.03754703881592334,
+      "off_16": 0.029348748145778182,
+      "off_16_r7": 0.026366933391208297
+    },
+    "3": {
+      "on_manifold_excess_rises": true,
+      "off_manifold_excess_falls": true,
+      "on_16": 0.035588570840724,
+      "on_16_r7": 0.03762993528089744,
+      "off_16": 0.029292048671218922,
+      "off_16_r7": 0.02729087519098891
+    },
+    "4": {
+      "on_manifold_excess_rises": true,
+      "off_manifold_excess_falls": true,
+      "on_16": 0.035375748871789334,
+      "on_16_r7": 0.03819016304477012,
+      "off_16": 0.03047488847459486,
+      "off_16_r7": 0.026740817179215788
+    }
   },
-  "git_sha_at_run": "df975da78ffcf7f375d4934543ed21ca1e2e3261",
+  "cell_means": {
+    "REAL|R1-R6|ALL": {
+      "mass": 1.0,
+      "prev": 0.10045,
+      "mean_pstar": 0.10090717325370524,
+      "abs_res": 0.1376191602621769,
+      "bayes_floor": 0.1379526469479932,
+      "excess": -0.00033348668581629213,
+      "AUC_pstar_y": 0.8493475130848027,
+      "excess_mass": -0.00033348668581629213
+    },
+    "REAL|R1-R6|on-manifold": {
+      "mass": 1.0,
+      "prev": 0.10045,
+      "mean_pstar": 0.10090717325370524,
+      "abs_res": 0.1376191602621769,
+      "bayes_floor": 0.1379526469479932,
+      "excess": -0.00033348668581629213,
+      "AUC_pstar_y": 0.8493475130848027,
+      "excess_mass": -0.00033348668581629213
+    },
+    "REAL|R1-R6+R7|ALL": {
+      "mass": 1.0,
+      "prev": 0.10045,
+      "mean_pstar": 0.10090717325370524,
+      "abs_res": 0.1376191602621769,
+      "bayes_floor": 0.1379526469479932,
+      "excess": -0.00033348668581629213,
+      "AUC_pstar_y": 0.8493475130848027,
+      "excess_mass": -0.00033348668581629213
+    },
+    "REAL|R1-R6+R7|on-manifold": {
+      "mass": 1.0,
+      "prev": 0.10045,
+      "mean_pstar": 0.10090717325370524,
+      "abs_res": 0.1376191602621769,
+      "bayes_floor": 0.1379526469479932,
+      "excess": -0.00033348668581629213,
+      "AUC_pstar_y": 0.8493475130848027,
+      "excess_mass": -0.00033348668581629213
+    },
+    "copula|R1-R6|ALL": {
+      "mass": 1.0,
+      "prev": 0.09966333333333333,
+      "mean_pstar": 0.09827115455366156,
+      "abs_res": 0.17093134135511245,
+      "bayes_floor": 0.13719767497769125,
+      "excess": 0.03373366637742121,
+      "AUC_pstar_y": 0.589103854641163,
+      "excess_mass": 0.03373366637742121
+    },
+    "copula|R1-R6|off-manifold": {
+      "mass": 0.2666016666666667,
+      "prev": 0.11834245171110551,
+      "mean_pstar": 0.15350141674941264,
+      "abs_res": 0.22685454190205728,
+      "bayes_floor": 0.19734846853200225,
+      "excess": 0.029506073370055036,
+      "AUC_pstar_y": 0.5673800671274416,
+      "excess_mass": 0.007865901991707624
+    },
+    "copula|R1-R6|on-manifold": {
+      "mass": 0.7333983333333334,
+      "prev": 0.09287728955936238,
+      "mean_pstar": 0.07819357608658725,
+      "abs_res": 0.15060318911967738,
+      "bayes_floor": 0.11533011794193819,
+      "excess": 0.03527307117773919,
+      "AUC_pstar_y": 0.5881521190814645,
+      "excess_mass": 0.025869477155506103
+    },
+    "copula|R1-R6+R7|ALL": {
+      "mass": 1.0,
+      "prev": 0.09966333333333333,
+      "mean_pstar": 0.09827115455366156,
+      "abs_res": 0.17093134135511245,
+      "bayes_floor": 0.13719767497769125,
+      "excess": 0.03373366637742121,
+      "AUC_pstar_y": 0.589103854641163,
+      "excess_mass": 0.03373366637742121
+    },
+    "copula|R1-R6+R7|off-manifold": {
+      "mass": 0.3593883333333333,
+      "prev": 0.11537640595350054,
+      "mean_pstar": 0.14892912705724815,
+      "abs_res": 0.22169822087590205,
+      "bayes_floor": 0.1951096472684871,
+      "excess": 0.026588573607414977,
+      "AUC_pstar_y": 0.5699705158774557,
+      "excess_mass": 0.009554871809376832
+    },
+    "copula|R1-R6+R7|on-manifold": {
+      "mass": 0.6406116666666667,
+      "prev": 0.09084850444339349,
+      "mean_pstar": 0.06985257080105838,
+      "abs_res": 0.1424477638139051,
+      "bayes_floor": 0.10470835162588985,
+      "excess": 0.03773941218801523,
+      "AUC_pstar_y": 0.5873751175998599,
+      "excess_mass": 0.024177186294662235
+    }
+  },
+  "across_dgp_seed_sd": {
+    "REAL|R1-R6|ALL": {
+      "mass": 0.0,
+      "prev": 0.001198469075529276,
+      "mean_pstar": 0.0009722566465877609,
+      "abs_res": 0.001774329463175958,
+      "bayes_floor": 0.000938109646166012,
+      "excess": 0.0009448565160606535,
+      "AUC_pstar_y": 0.004050323386780645,
+      "excess_mass": 0.0009448565160606535
+    },
+    "REAL|R1-R6|on-manifold": {
+      "mass": 0.0,
+      "prev": 0.001198469075529276,
+      "mean_pstar": 0.0009722566465877609,
+      "abs_res": 0.001774329463175958,
+      "bayes_floor": 0.000938109646166012,
+      "excess": 0.0009448565160606535,
+      "AUC_pstar_y": 0.004050323386780645,
+      "excess_mass": 0.0009448565160606535
+    },
+    "REAL|R1-R6+R7|ALL": {
+      "mass": 0.0,
+      "prev": 0.001198469075529276,
+      "mean_pstar": 0.0009722566465877609,
+      "abs_res": 0.001774329463175958,
+      "bayes_floor": 0.000938109646166012,
+      "excess": 0.0009448565160606535,
+      "AUC_pstar_y": 0.004050323386780645,
+      "excess_mass": 0.0009448565160606535
+    },
+    "REAL|R1-R6+R7|on-manifold": {
+      "mass": 0.0,
+      "prev": 0.001198469075529276,
+      "mean_pstar": 0.0009722566465877609,
+      "abs_res": 0.001774329463175958,
+      "bayes_floor": 0.000938109646166012,
+      "excess": 0.0009448565160606535,
+      "AUC_pstar_y": 0.004050323386780645,
+      "excess_mass": 0.0009448565160606535
+    },
+    "copula|R1-R6|ALL": {
+      "mass": 0.0,
+      "prev": 0.0013788405958952933,
+      "mean_pstar": 0.0001355851069987401,
+      "abs_res": 0.001214893130571804,
+      "bayes_floor": 0.00023125389036666037,
+      "excess": 0.001185708939729485,
+      "AUC_pstar_y": 0.002481778266258353,
+      "excess_mass": 0.001185708939729485
+    },
+    "copula|R1-R6|off-manifold": {
+      "mass": 0.0008677357188555385,
+      "prev": 0.0015611908800898244,
+      "mean_pstar": 0.0014857442282872778,
+      "abs_res": 0.0020021389207458802,
+      "bayes_floor": 0.001070261237809744,
+      "excess": 0.0012441290761762741,
+      "AUC_pstar_y": 0.003825100427828057,
+      "excess_mass": 0.0003186374241508686
+    },
+    "copula|R1-R6|on-manifold": {
+      "mass": 0.0008677357188555817,
+      "prev": 0.0013901627995986003,
+      "mean_pstar": 0.0003959828767235334,
+      "abs_res": 0.0012111233872869821,
+      "bayes_floor": 0.0005979065246971596,
+      "excess": 0.0011959946642247817,
+      "AUC_pstar_y": 0.0025979280325796315,
+      "excess_mass": 0.000887401392719857
+    },
+    "copula|R1-R6+R7|ALL": {
+      "mass": 0.0,
+      "prev": 0.0013788405958952933,
+      "mean_pstar": 0.0001355851069987401,
+      "abs_res": 0.001214893130571804,
+      "bayes_floor": 0.00023125389036666037,
+      "excess": 0.001185708939729485,
+      "AUC_pstar_y": 0.002481778266258353,
+      "excess_mass": 0.001185708939729485
+    },
+    "copula|R1-R6+R7|off-manifold": {
+      "mass": 0.0016744671623468072,
+      "prev": 0.0014937183058792132,
+      "mean_pstar": 0.0012559264058424023,
+      "abs_res": 0.001852514013000761,
+      "bayes_floor": 0.0008053751486603495,
+      "excess": 0.0013103259210640627,
+      "AUC_pstar_y": 0.004671332595552789,
+      "excess_mass": 0.0004541702384798152
+    },
+    "copula|R1-R6+R7|on-manifold": {
+      "mass": 0.0016744671623468092,
+      "prev": 0.0013585948850224744,
+      "mean_pstar": 0.0004210122035593292,
+      "abs_res": 0.0010747455543056895,
+      "bayes_floor": 0.0006208427874811855,
+      "excess": 0.00113150678943273,
+      "AUC_pstar_y": 0.002675644042962789,
+      "excess_mass": 0.0007633570056822521
+    }
+  },
+  "across_copula_seed_sd": {
+    "copula|R1-R6|ALL": {
+      "mass": 0.0,
+      "prev": 0.0018811243977987686,
+      "mean_pstar": 0.0009015913487824583,
+      "abs_res": 0.0014959331017286282,
+      "bayes_floor": 0.0008646058764936265,
+      "excess": 0.0016611612164277281,
+      "AUC_pstar_y": 0.008490490832297078
+    },
+    "copula|R1-R6|off-manifold": {
+      "mass": 0.0020085227473387785,
+      "prev": 0.0034516172136249143,
+      "mean_pstar": 0.0018964511756407458,
+      "abs_res": 0.0031165730200370507,
+      "bayes_floor": 0.0016188037184395189,
+      "excess": 0.0024427406936678576,
+      "AUC_pstar_y": 0.012715449805477582
+    },
+    "copula|R1-R6|on-manifold": {
+      "mass": 0.002008522747338791,
+      "prev": 0.0025938511309703473,
+      "mean_pstar": 0.0011447104710077423,
+      "abs_res": 0.002578402559811341,
+      "bayes_floor": 0.001131851602312878,
+      "excess": 0.002560476337446352,
+      "AUC_pstar_y": 0.009025422345766556
+    },
+    "copula|R1-R6+R7|ALL": {
+      "mass": 0.0,
+      "prev": 0.0018811243977987686,
+      "mean_pstar": 0.0009015913487824583,
+      "abs_res": 0.0014959331017286282,
+      "bayes_floor": 0.0008646058764936265,
+      "excess": 0.0016611612164277281,
+      "AUC_pstar_y": 0.008490490832297078
+    },
+    "copula|R1-R6+R7|off-manifold": {
+      "mass": 0.0029476539799976054,
+      "prev": 0.0022452095886027644,
+      "mean_pstar": 0.0014244639519809988,
+      "abs_res": 0.002421973503041193,
+      "bayes_floor": 0.0011847659848596768,
+      "excess": 0.0020613584032211597,
+      "AUC_pstar_y": 0.01330184672167368
+    },
+    "copula|R1-R6+R7|on-manifold": {
+      "mass": 0.0029476539799976175,
+      "prev": 0.0027542264860823127,
+      "mean_pstar": 0.000913815292550485,
+      "abs_res": 0.002635069049562721,
+      "bayes_floor": 0.0009422677010953688,
+      "excess": 0.0025157064444332592,
+      "AUC_pstar_y": 0.00936857193939394
+    }
+  },
+  "git_sha_at_run": "eb5c040af129b9e3bd91180848e88bcea1f0d0af",
   "git_branch": "main",
   "git_dirty": false,
   "git_note": "clean tree at run time",

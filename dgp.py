@@ -9,7 +9,7 @@ Layers
 2. **Label** -- two standardised composite scores (``s_core``, ``s_trap``) are blended
    by ``lambda`` into ``z``; ``(gamma, alpha)`` are then jointly solved so that the
    realised prevalence and the closed-form Bayes-optimal AUC both hit their targets.
-3. **Rules** -- six hard logical constraints, checked per row. On real (unperturbed)
+3. **Rules** -- seven hard logical constraints, checked per row. On real (unperturbed)
    data they must never be violated.
 
 ``generate()`` returns ``(df, godview, manifest)``; the manifest is self-verifying via
@@ -372,7 +372,8 @@ def _solve_gamma_alpha(z: np.ndarray, prevalence: float, target_auc: float) -> t
 # Rule set
 # --------------------------------------------------------------------------------------
 
-# name -> (statement, antecedent_fn, consequent_fn). Adding a seventh rule is one entry.
+# name -> (statement, antecedent_fn, consequent_fn). Adding a rule is one entry: the set
+# is read late everywhere, and nothing downstream of it consumes RNG.
 # The 55 in R6 is the domain constant the rule is stated over; it coincides with the
 # default `preg_age_max`, which is what makes the rule hold by construction.
 RULES: dict[str, tuple[str, Callable[[Mapping[str, np.ndarray]], np.ndarray],
@@ -406,6 +407,25 @@ RULES: dict[str, tuple[str, Callable[[Mapping[str, np.ndarray]], np.ndarray],
         "Is_Pregnant == 1 -> Age <= 55",
         lambda d: np.asarray(d["Is_Pregnant"]) == 1,
         lambda d: np.asarray(d["Age"]) <= 55.0,
+    ),
+    # R1 is one-directional: it catches `smoker == 0 & cigs > 0` and never
+    # `smoker == 1 & cigs == 0`. That gap is the sole cause of the exact-zero-density
+    # rows found among R1-R6-clean copula output (12.6% of them; results/r7_decomp.csv).
+    # R7 closes the other direction, so it is part of the definition of on-manifold
+    # rather than a filter -- which is why it lives here and not in a runner.
+    #
+    # The consequent is exact `>= 1.0` and carries no tolerance. Under the SCM
+    # `cigs = where(smoker == 1, clip(N(15, 5), 1, 40), 0.0)`, so the clip lower bound
+    # returns literal 1.0 and a smoker's Cigs_Per_Day is exactly >= 1.0 with no float
+    # hazard. `Cigs in (0, 1)` moreover has zero density for every row -- non-smokers sit
+    # on the atom at 0, smokers on [1, 40] -- so the rule edge sits exactly on the support
+    # edge and a tolerance would forgive a strip that is structurally impossible.
+    # See rules_tol.py: R1's tolerance is a patch for exact equality to a point mass on a
+    # continuous column; R7's consequent is a half-line and needs no such patch.
+    "R7_smoker_cigs_min": (
+        "Current_Smoker == 1 -> Cigs_Per_Day >= 1",
+        lambda d: np.asarray(d["Current_Smoker"]) == 1,
+        lambda d: np.asarray(d["Cigs_Per_Day"]) >= 1.0,
     ),
 }
 

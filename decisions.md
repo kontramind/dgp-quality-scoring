@@ -53,3 +53,61 @@ are five-sample sds and neither settles the other. Ten canonical DGP seeds would
 the frozen citation unnecessary altogether, at which point this entry is closed rather
 than merely carried. Not worth commissioning a run for on its own: the coupling sweep
 will supply more seeds as a by-product, and this entry should be revisited then.
+
+---
+
+## 2026-08-20 — R7 is part of `dgp.RULES`, and adding it re-baselined nothing
+
+**Decision.** `R7_smoker_cigs_min` (`Current_Smoker == 1 -> Cigs_Per_Day >= 1`) is an
+**append-only** addition to `dgp.RULES`. Every pre-existing E0 golden value is
+bit-invariant under it: the E0 table gains one row (R7 binding, 0.198 measured, band
++/-0.01 to match the other emergent rates) and **no existing cell was edited**. The E0
+record was deliberately **not** re-run.
+
+**Why it belongs in `dgp.RULES` and not in a runner.** R1 is one-directional: it catches
+`smoker == 0 & cigs > 0` and never `smoker == 1 & cigs == 0`. That gap is the single
+cause of three findings in this project, most recently that 12.6% of R1-R6-clean copula
+rows carried *exactly zero* density (`results/r7_decomp.csv`). R7 closes the other
+direction and removes every such row, so it is load-bearing for the definition of
+on-manifold rather than a filter over it.
+
+**Why the consequent carries no tolerance.** Under the SCM,
+`cigs = where(smoker == 1, clip(N(15, 5), 1, 40), 0.0)`, so the clip lower bound returns
+literal `1.0` and a smoker's `Cigs_Per_Day` is exactly `>= 1.0` with no float hazard
+(canonical, n=50000, seed 0: minimum among smokers exactly 1.0, 22 rows at the edge,
+none below -- `manifests/s0_e0_r7_invariance.json`, `r7_support_edge`). `Cigs in (0, 1)`
+has zero density for *every* row, so the rule edge sits exactly on the support edge and a
+tolerance would forgive a strip that is structurally impossible for anyone. `rules_tol.py`
+therefore stays R1-only; it picks R7 up automatically through its `else` branch with the
+exact consequent.
+
+**Why nothing was re-baselined.** `evaluate_rules` consumes no RNG and runs after all
+sampling; `solve_binding_rates` only indexes `RULES` by name for the R3/R4 antecedents.
+A rule *addition* cannot perturb the sampler. `scripts/export_e0_r7_invariance.py` checks
+this rather than asserting it, by exact `==` / `DataFrame.equals` / `np.array_equal` and
+never `np.isclose`: `glucose_base`, `sbp_base`, `solved_gamma`, `solved_alpha`,
+`realised_prevalence`, `expected_bayes_auc`, all six R1-R6 binding rates, `X` elementwise
+and `p_true` elementwise are identical with and without R7. It also asserts the
+structural identity that is stronger than any band on either rate: R1 binds on
+non-smokers and R7 on smokers, so every row binds exactly one of them
+(40100 + 9900 = 50000, disjoint).
+
+**Differential contract, narrowed.** `tests/test_differential.py` now compares canonical
+against `reference/dgp_frozen.py` over `set(dgp.RULES) & set(ref.RULES)` -- the six
+shared rules, on which agreement stays exact -- and asserts that the set difference is
+exactly `{"R7_smoker_cigs_min"}` one way and empty the other. R7 is the *sole permitted*
+divergence, and the assertion still fails on an eighth divergence or on R7 silently
+disappearing (both verified by mutation). A carve-out that cannot fail is worse than no
+differential test.
+
+**`r7_decomp.py` and `occ_cop_r7.py` are reproducible only at their committed SHAs**
+(`133a889` and `571c444` respectively). Both contrast an R1-R6 row against an R1-R7 row,
+and both obtain the R1-R6 row from `rules_tol.check_rules_tol`, which reads `dgp.RULES`
+with a late lookup. With R7 in `dgp.RULES` that "R1-R6" row silently becomes an R1-R7
+row, the two rows collapse, and the headline decomposition (12.6% -> 0.0%; 76.7% ->
+71.7%) degenerates -- while the scripts keep running and keep emitting plausible numbers.
+Their committed results stand. **Do not re-run either script in place at HEAD.**
+
+**How to apply.** Treat `dgp.RULES` as seven rules. Quote R7's binding rate as ~0.198
+(= `p_smoker`). When a script needs a genuine R1-R6 row alongside an R1-R7 one, it must
+name the six explicitly rather than reading `dgp.RULES` and calling the result R1-R6.

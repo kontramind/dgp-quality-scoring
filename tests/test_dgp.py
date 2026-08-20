@@ -38,6 +38,12 @@ EMERGENT_BANDS = {
     # passes even when R6 never binds at all -- which is the dead-rule condition itself.
     # SE = sqrt(0.01*0.99/50000) = 0.00044, so +/-0.002 is ~4.5 SE.
     "R6_preg_age": (0.0100, 0.002),
+    # R7 was appended to dgp.RULES after this table was first recorded. Adding it edited
+    # no cell above: evaluate_rules consumes no RNG and runs after all sampling, so a
+    # rule addition cannot perturb the sampler and every other golden value is
+    # bit-identical (asserted by scripts/export_e0_r7_invariance.py). R7 binds on smokers,
+    # so its rate is p_smoker; +/-0.01 matches the other emergent bands.
+    "R7_smoker_cigs_min": (0.197, 0.01),
 }
 
 # Solved binding rates, re-measured on an independent n=50000 draw.

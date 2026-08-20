@@ -16,6 +16,18 @@ use ``rng.random(n) < p``, the reference uses ``rng.binomial(1, p, n)``), so ide
 seeds give different samples. This file therefore covers only the **deterministic**
 layer, where agreement must be exact. The stochastic pipeline is compared
 distributionally by ``scripts/export_differential.py`` into ``results/s0_differential.csv``.
+
+**One rule deliberately diverges, and the divergence is asserted, not tolerated.**
+Canonical has seven rules; the frozen reference has six. ``R7_smoker_cigs_min``
+(``Current_Smoker == 1 -> Cigs_Per_Day >= 1``) was appended to ``dgp.RULES`` to close the
+direction ``R1_smoker_cigs`` leaves open, and the reference is frozen so it will never
+gain it. The contract here is therefore *not* "canonical and frozen agree" but
+"**identical on the six shared rules, and R7 is the sole divergence**": the per-rule
+comparisons run over ``set(dgp.RULES) & set(ref.RULES)``, and the set comparison asserts
+the difference is exactly ``{"R7_smoker_cigs_min"}`` in one direction and empty in the
+other. A *seventh* divergence, or R7 silently vanishing, still fails. This is not a
+bug to be "fixed" back to a plain set equality -- a carve-out that cannot fail is worse
+than no differential test at all.
 """
 
 from __future__ import annotations
@@ -42,7 +54,11 @@ def _load_reference():
 
 ref = _load_reference()
 
-RULE_NAMES = list(dgp.RULES)
+# The comparison set is the intersection, not `list(dgp.RULES)`: R7 exists only in
+# canonical, so comparing it against the reference would KeyError. The divergence itself
+# is asserted separately in test_rule_summaries_match_reference.
+RULE_NAMES = [r for r in dgp.RULES if r in ref.RULES]
+CANONICAL_ONLY = {"R7_smoker_cigs_min"}
 EXACT = 1e-12
 
 
@@ -115,7 +131,8 @@ def violating_frame():
     """Real data carries zero violations, which would make the comparison vacuous.
 
     Each rule is deliberately broken on a slice of rows so both the binding and the
-    violated masks are non-trivial for all six.
+    violated masks are non-trivial -- for all six shared rules, and for R7, which only
+    canonical has and which is checked separately for that reason.
     """
     df, _, _ = generate(DGPConfig(n_samples=4000, seed=0))
     df = df.copy()
@@ -129,13 +146,18 @@ def violating_frame():
     df.loc[some(df.Systolic_BP > 140.0), "On_BP_Medication"] = 0
     df.loc[some(df.Biological_Sex == 1), "Is_Pregnant"] = 1
     df.loc[some(df.Is_Pregnant == 1), "Age"] = 70.0
+    # R7: smokers pushed to zero cigarettes. Disjoint from the R1 slice above, which
+    # touches non-smokers only.
+    df.loc[some(df.Current_Smoker == 1), "Cigs_Per_Day"] = 0.0
     return df
 
 
 def test_rule_flags_match_reference(violating_frame):
-    """Identical per-row binding and violated flags for all six rules."""
+    """Identical per-row binding and violated flags for the six shared rules."""
     summaries, flags, total = evaluate_rules(violating_frame)
     their_flags = ref.check_rules(violating_frame)
+
+    assert len(RULE_NAMES) == 6, RULE_NAMES     # an empty comparison set would pass vacuously
 
     for name in RULE_NAMES:
         assert np.array_equal(flags[f"{name}__binding"], their_flags[f"{name}__bound"].to_numpy()), name
@@ -146,12 +168,29 @@ def test_rule_flags_match_reference(violating_frame):
         assert flags[f"{name}__violated"].sum() > 0, f"{name} was never violated"
 
 
+def test_canonical_only_rule_is_exercised(violating_frame):
+    """R7 is exercised in canonical, and the reference has nothing to exercise.
+
+    Held separately from the shared-rule comparison because there is no reference side
+    to compare against -- but an unexercised rule proves as little here as anywhere else.
+    """
+    _, flags, _ = evaluate_rules(violating_frame)
+
+    for name in CANONICAL_ONLY:
+        assert name in dgp.RULES and name not in ref.RULES, name
+        assert flags[f"{name}__binding"].sum() > 0, f"{name} never bound"
+        assert flags[f"{name}__violated"].sum() > 0, f"{name} was never violated"
+        assert f"{name}__bound" not in ref.check_rules(violating_frame).columns
+
+
 def test_rule_summaries_match_reference(violating_frame):
     """binding_rate / violation_rate / violations agree, modulo the name/rule key."""
     ours = {s["name"]: s for s in evaluate_rules(violating_frame)[0]}
     theirs = {r["rule"]: r for r in ref.rule_report(violating_frame).to_dict("records")}
 
-    assert set(ours) == set(theirs)
+    # The contract, stated so it can still fail: exactly R7 on our side, nothing on theirs.
+    assert set(ours) - set(theirs) == CANONICAL_ONLY
+    assert set(theirs) - set(ours) == set()
     for name in RULE_NAMES:
         assert ours[name]["statement"] == theirs[name]["statement"]
         assert ours[name]["violations"] == theirs[name]["violations"]

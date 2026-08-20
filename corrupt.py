@@ -72,3 +72,70 @@ class TrueRisk:
         mix = self._mix(self._comb(X, CORE_W), self._comb(X, TRAP_W))
         z = (mix - self.mix_ms[0]) / self.mix_ms[1]
         return expit(self.alpha + self.gamma * np.asarray(z, dtype=float))
+
+
+# --------------------------------------------------------------------------------------
+# Corruption harness
+# --------------------------------------------------------------------------------------
+#
+# One mutation per selected row, chosen uniformly among whichever of the four are
+# eligible for that row. Each lands in a deterministic or structural branch of
+# ``density.log_density_X`` -- `Diabetic|Glucose` low band, `Meds|SBP` above 140,
+# `Is_Pregnant|Sex,Age` ineligible, `Cigs|Smoker` non-smoker atom -- so a corrupted row
+# has exactly zero density, not merely a small one.
+#
+# The harness breaks R1, R2, R4 and R5. Not R3, not R6, and not R7: that is its existing
+# scope, and widening it would change what the harness represents.
+#
+# Note on R1 eligibility: it is exact ``Cigs_Per_Day == 0``. Applied to a *synthetic*
+# pool, a non-smoker sitting at 0.3 cigarettes is silently ineligible. That is a mild
+# selection effect on which rows get corrupted, not a correctness bug; recorded here so
+# it is a known property rather than an oversight.
+#
+# There is deliberately no ``VIOLATIONS`` table. The prior implementation carried one, as
+# ``lambda d, m: d.loc[m, "Diabetic"].__setitem__(slice(None), 1)`` -- chained assignment
+# onto a temporary, i.e. a silent no-op. Nothing referenced it, and ``apply_violations``
+# mutated through its own inline mapping. It read like the specification while not being
+# the code that ran. Do not reintroduce it from the old file.
+
+# (rule broken, eligibility predicate, column mutated, new value). Declaration order is
+# load-bearing: it fixes which index ``rng.integers(len(opts))`` selects.
+_MUTATIONS = [
+    ("R2_glucose_floor",
+     lambda r: r["Fasting_Glucose"] < 100.0 and r["Diabetic"] == 0,
+     "Diabetic", 1),
+    ("R4_bp_mandatory",
+     lambda r: r["Systolic_BP"] > 140.0 and r["On_BP_Medication"] == 1,
+     "On_BP_Medication", 0),
+    ("R5_anatomical",
+     lambda r: r["Biological_Sex"] == 1 and r["Is_Pregnant"] == 0,
+     "Is_Pregnant", 1),
+    ("R1_smoker_cigs",
+     lambda r: r["Current_Smoker"] == 0 and r["Cigs_Per_Day"] == 0,
+     "Cigs_Per_Day", 12.0),
+]
+
+
+def apply_violations(X: pd.DataFrame, rows, rng) -> tuple[pd.DataFrame, np.ndarray]:
+    """Break one rule per selected row. Returns ``(Xc, applied)``.
+
+    ``rows`` are *positional* row indices into ``X``. ``applied`` is a length-``len(X)``
+    object array naming the rule broken on each row, and ``""`` wherever no mutation was
+    applied -- both for rows that were never selected and for selected rows where none of
+    the four mutations was eligible. Every row with ``applied[r] == ""`` is therefore
+    bit-identical to its input row.
+    """
+    Xc = X.copy()
+    applied = np.full(len(Xc), "", dtype=object)
+
+    for r in rows:
+        r = int(r)
+        row = Xc.iloc[r]
+        opts = [m for m in _MUTATIONS if m[1](row)]
+        if not opts:
+            continue
+        name, _elig, col, val = opts[int(rng.integers(len(opts)))]
+        Xc.iat[r, Xc.columns.get_loc(col)] = val
+        applied[r] = name
+
+    return Xc, applied

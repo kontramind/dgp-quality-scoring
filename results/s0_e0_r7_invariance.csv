@@ -1,0 +1,16 @@
+quantity,before_R7,after_R7,equal
+glucose_base,102.24436042572763,102.24436042572763,True
+sbp_base,109.2249543910829,109.2249543910829,True
+solved_gamma,1.4586073083627364,1.4586073083627364,True
+solved_alpha,-2.9829892469412003,-2.9829892469412003,True
+realised_prevalence,0.09922,0.09922,True
+expected_bayes_auc,0.8500000000004753,0.8500000000004753,True
+R1_smoker_cigs_binding,0.802,0.802,True
+R2_glucose_floor_binding,0.37684,0.37684,True
+R3_glucose_ceil_binding,0.07952,0.07952,True
+R4_bp_mandatory_binding,0.20078,0.20078,True
+R5_anatomical_binding,0.50252,0.50252,True
+R6_preg_age_binding,0.0096,0.0096,True
+total_violations_on_real,0.0,0.0,True
+R7_smoker_cigs_min_binding,,0.198,
+R7_violations_on_real,,0.0,

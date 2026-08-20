@@ -150,9 +150,10 @@ available for it.
 **How to apply.** When adding a rule, classify it first. If its antecedent reads a config
 parameter back, the centre is the derivation — do not run the DGP and write down what came
 out. `tests/test_dgp.py::test_derived_band_centres_match_their_closed_forms` enforces this
-for the four derived rules so the rule survives as more than a comment. Note that
-`EMERGENT_BANDS` is now a misnomer: four of its seven entries are derived, not emergent.
-Renaming it touches every call site and was left for a follow-up.
+for the four derived rules so the rule survives as more than a comment. (The table was
+called `EMERGENT_BANDS` when this entry was written, which was a misnomer for four of its
+seven entries; it and `SOLVED_BANDS` were later merged into `BINDING_BANDS` — see the
+classed-bands-table entry below.)
 
 ---
 
@@ -184,27 +185,120 @@ carry this entry's licence.
 
 ---
 
-## 2026-08-20 — Cohort marginals are stipulations, not epidemiological estimates
+## 2026-08-20 — Three provenance categories, not two (supersedes the two-way split)
 
-**Decision.** `p_smoker`, `p_male`, `p_pregnant`, `preg_age_max` and `age_range` fix the
-composition of the simulated cohort. They are **declared stipulations**. They are not
-estimates of any real population and must never be cited to a prevalence source.
+**Decision.** This entry replaces an earlier two-way sourced/stipulated split, which was
+wrong: `age_range` fits neither side. There are **three** categories, and canonical
+`dgp.py` now carries both structures that make the boundary checkable rather than
+asserted.
 
-**What is sourced, and where.** Only the structural coefficients are literature-backed:
-`b_bmi_glucose = 0.70` and `b_hyperglyc_sbp = 1.76` (Mendelian-randomization estimates)
-and the 30-79 age range's origin in the AHA PREVENT validated range. In canonical `dgp.py`
-these carry inline `# MR estimate` comments on the `DGPConfig` fields; the full citations
-live in `reference/dgp_frozen.py::COEFFICIENT_PROVENANCE`, which is comparison-only and
-must not become a runtime dependency. Note that the age range is doing two jobs — it is
-sourced *and* it enters R6's derived band centre as a cohort stipulation.
+**1. Sourced structural coefficients.** `b_bmi_glucose = 0.70` and
+`b_hyperglyc_sbp = 1.76`. The citation licenses the magnitude. Recorded in
+`dgp.COEFFICIENT_PROVENANCE`, copied **verbatim** from
+`reference/dgp_frozen.py::COEFFICIENT_PROVENANCE` — the frozen wording is the only
+authority for these strings, and copying text is not a runtime dependency on the frozen
+reference, so it does not breach the freeze line. Do not reword, reformat or "improve" a
+citation.
 
-**Why this is worth writing down.** `p_smoker = 0.20` is roughly double contemporary US
-adult cigarette-smoking prevalence (9.9% in 2024 — an external figure, not derivable from
-this repo). Sourcing it would invite an audit of the DGP as a cardiovascular model. It is
-not one and does not need to be: no claim in this line of work depends on a marginal's
-epidemiological accuracy. The marginals exist to give each rule enough binding mass to
-carry signal, which is a design requirement, not a modelling claim.
+**2. Sourced window, stipulated shape.** `age_range` alone. The AHA PREVENT citation
+licenses the **30-79 window** — the equations are validated over it — and says nothing
+about the **distribution inside it**. The DGP draws `Age ~ Uniform(30, 79)`, chosen for
+even coverage of the validated range, not for population realism; no cohort is uniform in
+age. A reader who sees only the citation will infer otherwise, so the split is written
+down at both places `age_range` appears in `dgp.py`.
 
-**How to apply.** In prose, call these "stipulated cohort composition". If a reviewer asks
-why smoking prevalence is 20%, the answer is that R1 and R7 need binding mass on both
-sides of the smoker split, not that any population looks like this.
+`age_range` is also **not a free knob**. `glucose_base` and `sbp_base` are solved by
+`solve_binding_rates()` conditional on the window, and the rule layer is not
+orthogonalized against it. Sweeping the window on the frozen implementation while holding
+the seed-0 calibration fixed moves R4 from 0.2017 at (30, 79) to 0.2467 at (40, 79) and
+0.1328 at (30, 69) — against a declared band of 0.200 +/- 0.005, roughly nine and fourteen
+band widths out. Prevalence and Bayes AUC are unmoved, because those are *solved*; the
+binding rates are not. Contrast `p_smoker`, which leaves R2 at 0.378860 across its whole
+range. (Frozen's digits, quoted as mechanism, not as targets.) **Changing `age_range`
+without re-running `solve_binding_rates` silently invalidates every declared binding
+rate.**
+
+**3. Stipulated marginals.** `p_male`, `p_smoker`, `p_pregnant`, `preg_age_max`, the
+`sd_*` family, `p_diabetic_midband`, `meds_age_scale`. Declared, not estimated; not to be
+cited to any prevalence source. Enumerated in `dgp.COHORT_STIPULATIONS`, because the claim
+that only *some* quantities are sourced is checkable only if the rest are listed rather
+than left to inference from silence. They exist to give each rule enough binding mass to
+carry signal — a design requirement, not a modelling claim.
+
+`p_smoker = 0.20` is roughly double contemporary US adult cigarette-smoking prevalence
+(9.9% in 2024 — an external figure, not derivable from this repo). It must not be sourced:
+doing so would invite an audit of this DGP as a cardiovascular model, which it is not and
+does not need to be.
+
+**Inertness and drift.** Both structures are module-level data that nothing reads at
+runtime; they cannot perturb generation. Verified rather than assumed — after adding them,
+the E0 golden CSV regenerates byte-identical to the committed one.
+`COEFFICIENT_PROVENANCE` duplicates each coefficient's magnitude next to its citation, and
+that duplication is only defensible because it cannot drift:
+`tests/test_dgp.py::test_coefficient_provenance_matches_config` asserts the cited values
+equal the `DGPConfig` defaults. A citation attached to a number the model no longer uses
+is worse than no citation, because it reads as evidence for whatever the field now holds.
+`COHORT_STIPULATIONS` carries notes only, no values — there is no citation there for a
+value to drift away from, so a second copy of the defaults would be a drift surface with
+nothing to gain.
+
+**How to apply.** In prose, say "stipulated cohort composition" for category 3, and for
+`age_range` say "the validated 30-79 window, sampled uniformly by stipulation". If a
+reviewer asks why smoking prevalence is 20%, the answer is that R1 and R7 need binding
+mass on both sides of the smoker split.
+
+---
+
+## 2026-08-20 — One classed bands table; `EMERGENT_BANDS` and `SOLVED_BANDS` are gone
+
+**Decision.** `tests/test_dgp.py`'s two band tables are merged into one,
+`BINDING_BANDS`, mapping each rule to `(centre, width, class)` with `class` in
+`derived` / `solved` / `emergent`. `EMERGENT_BANDS` was a misnomer once four of its seven
+entries turned out to be derived, and the split between the two dicts encoded the
+classification implicitly — a rule's class was "which dict it sits in, plus a comment".
+Now it is data.
+
+**Centres and widths are unchanged.** This is a restructure, not a recalibration: the
+seed-0 fractions of band used are identical to before — R1 0.200, R2 0.216, R3 0.096,
+R4 0.156, R5 0.252, R6 0.302, R7 0.200, worst case over seeds 0-4 is 0.500 (R3).
+
+**What the class field now buys.**
+`test_derived_band_centres_match_their_closed_forms` iterates the entries marked
+`derived` instead of carrying its own hard-coded list, so a rule added as `derived`
+cannot silently skip the closed-form check, and one added as `derived` without a closed
+form in `_derived_centres` fails loudly rather than being skipped. The same test asserts
+that the `solved` centres are exactly `E0_TARGETS` and that `set(BINDING_BANDS)` equals
+`set(dgp.RULES)`, so an unbanded rule is caught too. All three failure modes were
+verified by mutation.
+
+**How to apply.** When adding a rule, add its band with a class. `derived` obliges you to
+add its closed form to `_derived_centres`; the test will tell you if you forget.
+
+---
+
+## 2026-08-20 — Historical `git_dirty: false` stamps stand; the audit is closed
+
+**Decision.** The provenance defect fixed in `5533c70` — `_write` splatting
+`_provenance()` after `frame.to_csv`, so the `@cache` first evaluated on a tree the run
+had already dirtied — was flagged as casting doubt on every manifest `export_s0.py` wrote
+before that commit. **It does not.** No re-audit of `s0_config_grid` or
+`s0_coupling1_ceiling` is needed.
+
+**Why the defect is direction-safe.**
+
+| tree before run | run changed an output | stamp | correct? |
+|---|---|---|---|
+| clean | no | false | yes |
+| clean | yes | **true** | no — false alarm |
+| dirty | no | true | yes |
+| dirty | yes | true | yes |
+
+Uncommitted **code** is visible to `git status` before the run and stays visible no matter
+when `_provenance()` is evaluated. So `git_dirty: false` still implies no uncommitted code
+at run time, which is the only question the field exists to answer. The defect can
+manufacture a false *positive* and cannot manufacture a false *clearance*.
+
+**How to apply.** Historical `false` stamps are trustworthy as they stand. Only historical
+`true` stamps are suspect, and only in the narrow sense that some may be false alarms from
+a run that changed an output on an otherwise clean tree — which matters only if a run was
+ever discarded on that basis. None was. Do not reopen this.

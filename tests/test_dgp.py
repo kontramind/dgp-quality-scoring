@@ -19,7 +19,9 @@ import numpy as np
 import pytest
 
 from dgp import (
+    COEFFICIENT_PROVENANCE,
     DGPConfig,
+    RULES,
     assert_valid,
     bayes_auc,
     bayes_auc_naive,
@@ -29,8 +31,9 @@ from dgp import (
 
 E0_TARGETS = {"R3_glucose_ceil": 0.08, "R4_bp_mandatory": 0.20}
 
-# Binding rates that are not solved for by solve_binding_rates(). Every rule falls into
-# exactly one of three classes, and the class decides where its band centre comes from:
+# Declared band for every rule's binding rate. One table, because the derived/solved/
+# emergent split is *data* -- the third field -- and not "which of two dicts a rule sits
+# in, plus a comment". The class decides where the centre comes from:
 #
 #   derived   The antecedent is a config parameter read back, so the rate has a closed
 #             form in DGPConfig. The centre is that closed form. R1 `1 - p_smoker`,
@@ -38,9 +41,11 @@ E0_TARGETS = {"R3_glucose_ceil": 0.08, "R4_bp_mandatory": 0.20}
 #             `(1 - p_male) * (preg_age_max - age_lo)/(age_hi - age_lo) * p_pregnant`
 #             -- Is_Pregnant is drawn only for women at or below preg_age_max, over a
 #             uniform age range. On the defaults: 0.800, 0.500, 0.200, 0.0102040816.
+#             test_derived_band_centres_match_their_closed_forms iterates this class,
+#             so a new derived rule cannot silently skip the closed-form check.
 #
 #   solved    The rate is a target handed to solve_binding_rates(). The centre is the
-#             declared target. R3 and R4, in SOLVED_BANDS below.
+#             declared target, asserted against E0_TARGETS. R3 and R4.
 #
 #   emergent  No closed form; the centre can only be measured. R2 alone. Checked rather
 #             than assumed: it moves with several parameters at once and is a Gaussian
@@ -49,38 +54,79 @@ E0_TARGETS = {"R3_glucose_ceil": 0.08, "R4_bp_mandatory": 0.20}
 #             sd_glucose=25 -> 0.425, b_bmi_glucose=1.4 -> 0.325 -- which is what a
 #             genuinely emergent rate looks like and what R1/R5/R6/R7 do not do.
 #
-# **A derived or solved centre never comes from an observed draw.** Four of these centres
-# were originally set from single realisations (R1 0.803, R5 0.497, R6 0.0100, R7 0.197)
-# and were recentred on their derivations. That is the same single-draw failure mode this
-# project has already paid for twice -- see decisions.md. The recentring is not cosmetic:
-# canonical measures R5 at 0.502520, which spent 55% of the +/-0.01 against the old
-# centre and spends 25% against the derived one.
+# **A derived or solved centre never comes from an observed draw.** Four centres were
+# originally set from single realisations (R1 0.803, R5 0.497, R6 0.0100, R7 0.197) and
+# were recentred on their derivations. That is the same single-draw failure mode this
+# project has already paid for twice -- see decisions.md. The recentring was not cosmetic:
+# canonical measures R5 at 0.502520, which spent 55% of the +/-0.01 against the old centre
+# and spends 25% against the derived one.
 #
-# Widths are unchanged by the recentring and are still sampling-error arguments.
-EMERGENT_BANDS = {
-    "R1_smoker_cigs": (0.800, 0.01),        # derived: 1 - p_smoker
-    "R2_glucose_floor": (0.379, 0.01),      # emergent: measured, no closed form
-    "R5_anatomical": (0.500, 0.01),         # derived: p_male
-    # R6 needs its own width. At p=0.01 the spec's blanket +/-0.01 admits [0, 0.02], so it
-    # passes even when R6 never binds at all -- which is the dead-rule condition itself.
-    # SE = sqrt(0.01*0.99/50000) = 0.00044, so +/-0.002 is ~4.5 SE.
-    "R6_preg_age": (0.010204, 0.002),       # derived: the pregnancy composite above
-    # R7 was appended to dgp.RULES after this table was first recorded. Adding it edited
-    # no cell above: evaluate_rules consumes no RNG and runs after all sampling, so a
-    # rule addition cannot perturb the sampler and every other golden value is
-    # bit-identical (asserted by scripts/export_e0_r7_invariance.py).
-    "R7_smoker_cigs_min": (0.200, 0.01),    # derived: p_smoker
+# Widths are sampling-error arguments and are unchanged by either the recentring or this
+# restructure:
+#
+#   * R3/R4 at +/-0.005. solve_binding_rates() calibrates at n_probe=40000 and E0 then
+#     regenerates at n_samples=50000, so the check is an effectively independent sample of
+#     the same rate. SE = sqrt(p(1-p)/n) at n=50000 is 0.00121 for R3 (p=.08) and 0.00179
+#     for R4 (p=.20), making +/-0.005 about 4 SE and 3 SE. The spec's original
+#     0.202 +/- 0.002 centred on one recorded realisation rather than on the target,
+#     leaving it off-centre by ~1.1 SE; the frozen reference itself falls outside it at
+#     seed 4.
+#   * R6 at +/-0.002. It needs its own width: at p=0.01 the spec's blanket +/-0.01 admits
+#     [0, 0.02], so it passes even when R6 never binds at all -- which is the dead-rule
+#     condition itself. SE = sqrt(0.01*0.99/50000) = 0.00044, so +/-0.002 is ~4.5 SE.
+#   * The rest at +/-0.01.
+#
+# Rows are in dgp.RULES order. R7 was appended to dgp.RULES after this table was first
+# recorded and edited no other row: evaluate_rules consumes no RNG and runs after all
+# sampling, so a rule addition cannot perturb the sampler and every other golden value is
+# bit-identical (asserted by scripts/export_e0_r7_invariance.py).
+BINDING_BANDS: dict[str, tuple[float, float, str]] = {
+    #  rule                   centre     width   class
+    "R1_smoker_cigs":        (0.800,     0.010,  "derived"),     # 1 - p_smoker
+    "R2_glucose_floor":      (0.379,     0.010,  "emergent"),    # measured; no closed form
+    "R3_glucose_ceil":       (0.080,     0.005,  "solved"),      # E0_TARGETS
+    "R4_bp_mandatory":       (0.200,     0.005,  "solved"),      # E0_TARGETS
+    "R5_anatomical":         (0.500,     0.010,  "derived"),     # p_male
+    "R6_preg_age":           (0.010204,  0.002,  "derived"),     # the pregnancy composite
+    "R7_smoker_cigs_min":    (0.200,     0.010,  "derived"),     # p_smoker
 }
 
-# Solved binding rates, re-measured on an independent n=50000 draw.
-#
-# solve_binding_rates() calibrates at n_probe=40000 and E0 then regenerates at
-# n_samples=50000, so this is an effectively independent sample of the same rate.
-# SE = sqrt(p(1-p)/n) with n=50000  ->  0.00121 for R3 (p=.08), 0.00179 for R4 (p=.20).
-# A +/-0.005 band is ~4 SE / ~3 SE. The spec's original 0.202 +/- 0.002 centred the band
-# on one recorded realisation rather than on the target, leaving it off-centre by ~1.1 SE;
-# the reference implementation itself falls outside it at seed 4.
-SOLVED_BANDS = {"R3_glucose_ceil": (0.080, 0.005), "R4_bp_mandatory": (0.200, 0.005)}
+
+def _bands_of_class(*classes: str) -> dict[str, tuple[float, float, str]]:
+    return {r: b for r, b in BINDING_BANDS.items() if b[2] in classes}
+
+
+# dgp.COEFFICIENT_PROVENANCE key -> the DGPConfig field it documents.
+_PROVENANCE_FIELDS = {
+    "bmi_to_glucose": "b_bmi_glucose",
+    "hyperglycaemia_to_sbp": "b_hyperglyc_sbp",
+    "age_range": "age_range",
+}
+
+
+def test_coefficient_provenance_matches_config():
+    """The cited values are the values the DGP actually uses.
+
+    COEFFICIENT_PROVENANCE carries each coefficient's magnitude a second time, next to its
+    citation. That duplication is only defensible if it cannot drift: a citation attached
+    to a number the model no longer uses is worse than no citation, because it reads as
+    evidence for whatever the field now holds.
+    """
+    cfg = DGPConfig()
+    assert set(COEFFICIENT_PROVENANCE) == set(_PROVENANCE_FIELDS)
+
+    for key, field in _PROVENANCE_FIELDS.items():
+        cited, citation = COEFFICIENT_PROVENANCE[key]
+        actual = getattr(cfg, field)
+        # age_range is cited as ints and configured as floats; compare by value, and
+        # elementwise, rather than letting a tuple/type mismatch pass or fail spuriously.
+        if isinstance(actual, tuple):
+            assert tuple(float(v) for v in cited) == tuple(float(v) for v in actual), key
+        else:
+            assert float(cited) == float(actual), (
+                f"{key}: cited {cited} but DGPConfig.{field} is {actual}"
+            )
+        assert citation.strip(), f"{key} has an empty citation"
 
 
 def _rates(manifest) -> dict[str, float]:
@@ -101,26 +147,36 @@ def _derived_centres(cfg: DGPConfig) -> dict[str, float]:
 
 
 def test_derived_band_centres_match_their_closed_forms():
-    """The four `derived` centres are the derivation, not a remembered draw.
+    """Every `derived` centre is the derivation, not a remembered draw.
 
     Without this the classification above is a comment, and a comment does not stop the
-    next person from pasting in an observed rate. R2, R3 and R4 are deliberately absent:
-    R2 has no closed form and R3/R4 take their centres from SOLVED_BANDS' targets.
+    next person from pasting in an observed rate. The set of rules checked comes from
+    BINDING_BANDS' own `class` field, so a rule added as `derived` is checked whether or
+    not anyone remembers to extend this test -- and one added as `derived` without a
+    closed form in _derived_centres fails loudly rather than being skipped.
     """
-    derived = _derived_centres(DGPConfig())
-    assert set(derived) | {"R2_glucose_floor"} == set(EMERGENT_BANDS)
+    closed_forms = _derived_centres(DGPConfig())
+    derived = _bands_of_class("derived")
+    assert set(derived) == set(closed_forms), (
+        "a rule is classed `derived` with no closed form in _derived_centres, "
+        "or vice versa"
+    )
 
-    for rule, centre in derived.items():
-        recorded = EMERGENT_BANDS[rule][0]
+    for rule, (recorded, _width, _cls) in derived.items():
         # R6's closed form is 1/98, which does not terminate; the table carries it to the
         # six figures the other centres are exact at.
-        assert recorded == pytest.approx(centre, abs=5e-7), (
-            f"{rule}: band centre {recorded} != derived {centre}"
+        assert recorded == pytest.approx(closed_forms[rule], abs=5e-7), (
+            f"{rule}: band centre {recorded} != derived {closed_forms[rule]}"
         )
 
-    assert set(SOLVED_BANDS) == set(E0_TARGETS)
+    # `solved` centres are the declared targets, on the same principle.
+    assert set(_bands_of_class("solved")) == set(E0_TARGETS)
     for rule, target in E0_TARGETS.items():
-        assert SOLVED_BANDS[rule][0] == target
+        assert BINDING_BANDS[rule][0] == target
+
+    # Every rule in the DGP is banded, and every band names a real rule.
+    assert set(BINDING_BANDS) == set(RULES)
+    assert set(_bands_of_class("derived", "solved", "emergent")) == set(BINDING_BANDS)
 
 
 @pytest.fixture(scope="module")
@@ -138,9 +194,9 @@ def _check_e0_manifest(manifest, cfg) -> None:
     assert manifest["realised_prevalence"] == pytest.approx(cfg.prevalence, abs=0.01)
     assert manifest["expected_bayes_auc"] == pytest.approx(cfg.bayes_auc_target, abs=0.01)
 
-    for rule, (target, tol) in {**EMERGENT_BANDS, **SOLVED_BANDS}.items():
-        assert rates[rule] == pytest.approx(target, abs=tol), (
-            f"{rule}: {rates[rule]:.4f} outside {target} +/- {tol}"
+    for rule, (centre, width, _cls) in BINDING_BANDS.items():
+        assert rates[rule] == pytest.approx(centre, abs=width), (
+            f"{rule}: {rates[rule]:.4f} outside {centre} +/- {width}"
         )
 
 
@@ -169,8 +225,8 @@ def test_e0_golden_values(e0_config):
     print(f"  empirical_bayes_auc = {manifest['empirical_bayes_auc']:.6f}")
     print(f"  total_violations    = {manifest['total_violations_on_real']}   (exactly 0)")
     for name, rate in _rates(manifest).items():
-        target, tol = {**EMERGENT_BANDS, **SOLVED_BANDS}[name]
-        print(f"  {name:<18} = {rate:.4f}   ({target} +/- {tol})")
+        centre, width, cls = BINDING_BANDS[name]
+        print(f"  {name:<18} = {rate:.4f}   ({centre} +/- {width}, {cls})")
 
     assert df.shape == (50_000, 11)
     assert len(godview) == 50_000

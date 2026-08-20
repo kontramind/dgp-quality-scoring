@@ -36,7 +36,88 @@ __all__ = [
     "bayes_auc_naive",
     "evaluate_rules",
     "RULES",
+    "COEFFICIENT_PROVENANCE",
+    "COHORT_STIPULATIONS",
 ]
+
+# --------------------------------------------------------------------------------------
+# Provenance: what is sourced, what is stipulated
+# --------------------------------------------------------------------------------------
+#
+# Both structures below are inert documentation. Nothing reads them at runtime and they
+# cannot perturb generation. They exist because the paper's claim is that *only some* of
+# this model's numbers are literature-backed, and that claim is only checkable if the
+# rest are enumerated rather than left to inference from silence.
+#
+# COEFFICIENT_PROVENANCE is copied verbatim from reference/dgp_frozen.py -- the citation
+# wording there is the only authority for it, and the copy is text, not a runtime
+# dependency on the frozen reference. Do not reword, reformat or "tidy" a citation
+# string. The values are duplicated from the DGPConfig defaults on purpose:
+# test_dgp.py::test_coefficient_provenance_matches_config asserts they agree, so the
+# documentation cannot drift away from the code it documents.
+
+COEFFICIENT_PROVENANCE = {
+    "bmi_to_glucose": (
+        0.70,
+        "mg/dL per kg/m^2; Zou, Talluri & Shete, PLOS ONE 2024, bidirectional MR "
+        "(White/Caucasian, 95% CI 0.35-1.05)",
+    ),
+    "hyperglycaemia_to_sbp": (
+        1.76,
+        "mmHg for FPG >= 126; NHANES causal analysis, PSM estimate (95% CI 0.58-2.96)",
+    ),
+    "age_range": ((30, 79), "AHA PREVENT validated range; Khan et al., Circulation 2024"),
+}
+
+# `age_range` above is the one entry whose citation covers only half of what the config
+# does with it, and it must be read that way:
+#
+#   * The AHA PREVENT citation licenses the **window**. The equations are validated for
+#     ages 30-79, and that is what "validated range" means.
+#   * It says **nothing about the distribution inside that window**. The DGP draws
+#     `Age ~ Uniform(30, 79)` -- a stipulation chosen for even coverage of the validated
+#     range, not for population realism. No cohort is uniform in age. A reader who sees
+#     only the citation will infer otherwise, which is why the split is written down here
+#     and repeated in COHORT_STIPULATIONS.
+#
+# `age_range` is also **not a free knob**: the calibration constants `glucose_base` and
+# `sbp_base` are solved by solve_binding_rates() conditional on the age window, and the
+# rule layer is not orthogonalized against it. Changing the window without re-running the
+# calibration silently invalidates every declared binding rate. Sweeping the window on the
+# frozen implementation while holding the seed-0 calibration fixed moves R4 from 0.2017 at
+# (30, 79) to 0.2467 at (40, 79) and 0.1328 at (30, 69) -- against a declared band of
+# 0.200 +/- 0.005, roughly nine and fourteen band widths out. Prevalence and Bayes AUC are
+# unmoved, because those are solved for; the binding rates are not. Contrast `p_smoker`,
+# which leaves R2 at 0.378860 across its whole range. (Frozen's digits, quoted as
+# mechanism; canonical's differ and nothing here is a target.)
+
+# Knobs that fix the composition of the simulated cohort. Every one is **declared, not
+# estimated**: none is an estimate of any real population and none may be cited to a
+# prevalence source. No result in this project depends on a marginal's epidemiological
+# accuracy -- the marginals exist to give each rule enough binding mass to carry signal,
+# which is a design requirement rather than a modelling claim. (`p_smoker = 0.20` is
+# roughly double contemporary US adult cigarette-smoking prevalence; sourcing it would
+# invite an audit of this DGP as a cardiovascular model, which it is not.)
+#
+# Notes only, no values: a second copy of the defaults would be a second drift surface,
+# and unlike COEFFICIENT_PROVENANCE there is no citation here for a value to drift away
+# from.
+COHORT_STIPULATIONS: dict[str, str] = {
+    "p_male": "sex split of the cohort; set to 0.50 for balance, not measured",
+    "p_smoker": "smoking prevalence; chosen to give R1 and R7 binding mass on both sides",
+    "p_pregnant": "pregnancy rate among eligible women; sets R6's binding mass",
+    "preg_age_max": "upper age for pregnancy eligibility; the domain constant R6 is stated over",
+    "sd_bmi": "residual spread of BMI about its structural mean",
+    "sd_glucose": "residual spread of Fasting_Glucose about its structural mean",
+    "sd_sbp": "residual spread of Systolic_BP about its structural mean",
+    "p_diabetic_midband": "P(Diabetic = 1 | 100 <= glucose < 126); the one non-deterministic band",
+    "meds_age_scale": "age slope of medication uptake below the SBP > 140 hard floor",
+    "age_range": (
+        "SOURCED WINDOW, STIPULATED SHAPE. The 30-79 window is cited in "
+        "COEFFICIENT_PROVENANCE; the Uniform distribution within it is not, and the "
+        "calibration constants are solved conditional on the window. See the note above."
+    ),
+}
 
 # --------------------------------------------------------------------------------------
 # Configuration

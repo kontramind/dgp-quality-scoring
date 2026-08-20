@@ -1,7 +1,7 @@
 {
   "artifact": "s0_e0_golden",
   "stage": "S0",
-  "git_sha_at_run": "271318f4667a03e835ad0e45515e722d9694be08",
+  "git_sha_at_run": "5533c706a1e3b545d25a0c24b224b764730a7d4a",
   "git_branch": "main",
   "git_dirty": false,
   "git_note": "clean tree at run time",
@@ -13,7 +13,7 @@
     "scipy": "1.18.0",
     "pytest": "9.1.1"
   },
-  "wall_time_seconds": 0.671,
+  "wall_time_seconds": 0.51,
   "output_paths": {
     "csv": "results/s0_e0_golden.csv",
     "manifest": "manifests/s0_e0_golden.json"
@@ -93,7 +93,8 @@
       "R3_glucose_ceil": 0.07952,
       "R4_bp_mandatory": 0.20078,
       "R5_anatomical": 0.50252,
-      "R6_preg_age": 0.0096
+      "R6_preg_age": 0.0096,
+      "R7_smoker_cigs_min": 0.198
     }
   },
   "binding_rate_ranges_over_seeds": {
@@ -120,6 +121,10 @@
     "R6_preg_age": [
       0.0096,
       0.01074
+    ],
+    "R7_smoker_cigs_min": [
+      0.19682,
+      0.20052
     ]
   }
 }

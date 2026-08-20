@@ -1,0 +1,266 @@
+{
+  "artifact": "occupancy_arms",
+  "stage": "S2",
+  "script": "scripts/export_occupancy.py",
+  "purpose": "Generator occupancy and contradiction, R1-R7, at HEAD. Re-establishes occ_cop_r7.py's post-R7 measurement through a harness whose generator is a parameter.",
+  "git_sha_at_run": "f938f2a5c20abcf4f9ec452f77f9fc8a709ec212",
+  "git_branch": "main",
+  "git_dirty": false,
+  "git_note": "clean tree at run time",
+  "python": "3.14.0",
+  "platform": "Linux-7.0.11-76070011-generic-x86_64-with-glibc2.35",
+  "packages": {
+    "numpy": "2.5.2",
+    "pandas": "3.0.5",
+    "scipy": "1.18.0",
+    "pytest": "9.1.1"
+  },
+  "wall_time_seconds": 1.518,
+  "n_rows": 30,
+  "design_source": {
+    "from": "occ_cop_r7.py at eb5c040 (results committed at 571c444)",
+    "n_samples": 40000,
+    "split": {
+      "test_size": 0.4,
+      "random_state": 0,
+      "stratify": "Heart_Disease_Risk",
+      "n_train": 24000,
+      "n_holdout": 16000
+    },
+    "X_ref_for_TrueRisk": "the train half (features only, label popped), frozen once per DGP seed outside the arm loop",
+    "generator_sample_size": 24000,
+    "seed_pairing": "5 DGP seeds x 5 generator seeds; the generator seed is np.random.default_rng(gen_seed) and does not depend on the DGP seed. One RNG serves both fit and sample.",
+    "aggregation": "mean over generator seeds within a DGP seed first, then mean and sd (ddof=1) across DGP seeds",
+    "not_inherited": "occ_cop_r7.py's R1-R6 arm. check_rules_tol reads R7 out of dgp.RULES at HEAD, so an R1-R6 row computed through it would silently be an R1-R7 row. The R1-R6 contrast stands as a historical figure at 571c444."
+  },
+  "dgp_config": {
+    "solve_binding_rates": {
+      "R3_glucose_ceil": 0.08,
+      "R4_bp_mandatory": 0.2
+    },
+    "n_probe": 40000,
+    "calibration": "solved once, reused across DGP seeds (E0 recipe)",
+    "glucose_base": 102.24436042572763,
+    "sbp_base": 109.2249543910829
+  },
+  "dgp_manifest_checks_by_dgp_seed": {
+    "0": {
+      "realised_prevalence": 0.0986,
+      "expected_bayes_auc": 0.8500000000005825,
+      "solved_gamma": 1.4619492755517172,
+      "total_violations_on_real": 0
+    },
+    "1": {
+      "realised_prevalence": 0.10195,
+      "expected_bayes_auc": 0.8500000000005971,
+      "solved_gamma": 1.4624045148222218,
+      "total_violations_on_real": 0
+    },
+    "2": {
+      "realised_prevalence": 0.10025,
+      "expected_bayes_auc": 0.8500000000005543,
+      "solved_gamma": 1.4605188042989752,
+      "total_violations_on_real": 0
+    },
+    "3": {
+      "realised_prevalence": 0.100625,
+      "expected_bayes_auc": 0.8500000000004173,
+      "solved_gamma": 1.4545239555577305,
+      "total_violations_on_real": 0
+    },
+    "4": {
+      "realised_prevalence": 0.1008,
+      "expected_bayes_auc": 0.8500000000005863,
+      "solved_gamma": 1.4616715538416778,
+      "total_violations_on_real": 0
+    }
+  },
+  "arms": [
+    "copula_dt"
+  ],
+  "ruleset": "R1-R7 via rules_tol.check_rules_tol",
+  "rules_tol": 0.5,
+  "rule_names": [
+    "R1_smoker_cigs",
+    "R2_glucose_floor",
+    "R3_glucose_ceil",
+    "R4_bp_mandatory",
+    "R5_anatomical",
+    "R6_preg_age",
+    "R7_smoker_cigs_min"
+  ],
+  "estimator": {
+    "excess": "mean|y - p*| - 2*E[p*(1-p*)], computed within subset",
+    "se": "sqrt(mean[p*(1-p*)(1-2p*)^2] / m), from each subset's own p*",
+    "forbidden": "excess is never computed inside a label-defined subset; the on/off-manifold split is feature-defined and therefore safe"
+  },
+  "summary_by_arm": {
+    "copula_dt": {
+      "on_manifold_excess_share_pct_by_dgp_seed": [
+        72.29465681760588,
+        71.5555571850578,
+        71.89175345495362,
+        70.94039051730243,
+        71.73130647307308
+      ],
+      "on_manifold_excess_share_pct_mean": 71.68273288959855,
+      "on_manifold_excess_share_pct_sd": 0.4969269918590901,
+      "per_dgp_seed_means": {
+        "on_manifold_row_share": [
+          0.6393083333333334,
+          0.6424749999999999,
+          0.6423583333333334,
+          0.6390499999999999,
+          0.6398666666666667
+        ],
+        "excess_all": [
+          0.03193419031313012,
+          0.035219835570559924,
+          0.033544637292162845,
+          0.03389850046656381,
+          0.03407116824468932
+        ],
+        "se_all": [
+          0.001134464412605256,
+          0.0011335549148151305,
+          0.0011337644587453895,
+          0.0011355194186900368,
+          0.0011344322053620218
+        ],
+        "excess_on_manifold": [
+          0.036106440849531476,
+          0.03922348294895377,
+          0.03754703881592334,
+          0.03762993528089744,
+          0.03819016304477012
+        ],
+        "se_on_manifold": [
+          0.0013188801998020908,
+          0.001312729331335305,
+          0.0013165795057843589,
+          0.0013194235280676603,
+          0.0013180167545301259
+        ],
+        "excess_off_manifold": [
+          0.024525409693179512,
+          0.02801883258248238,
+          0.026366933391208297,
+          0.02729087519098891,
+          0.026740817179215788
+        ],
+        "se_off_manifold": [
+          0.0021044052536467136,
+          0.002118431835822053,
+          0.0021114780256688364,
+          0.0021072033104471938,
+          0.0021068278557445368
+        ],
+        "frac_density_zero_ruleclean": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "frac_density_zero_violating": [
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "n_cigs_in_tol_band": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "mean": {
+        "gen_seed": 2.0,
+        "n": 24000.0,
+        "on_manifold_row_share": 0.6406116666666667,
+        "n_on_manifold": 15374.680000000002,
+        "n_off_manifold": 8625.319999999998,
+        "frac_density_zero_ruleclean": 0.0,
+        "frac_density_zero_violating": 1.0,
+        "density_zero_violating_exact": 1.0,
+        "n_cigs_in_tol_band": 0.0,
+        "mean_pstar": 0.09827115455366156,
+        "prev": 0.09966333333333333,
+        "R1_smoker_cigs__violation_rate": 0.11508,
+        "R2_glucose_floor__violation_rate": 0.031718333333333334,
+        "R3_glucose_ceil__violation_rate": 0.05187333333333334,
+        "R4_bp_mandatory__violation_rate": 0.09126999999999999,
+        "R5_anatomical__violation_rate": 0.0046366666666666665,
+        "R6_preg_age__violation_rate": 0.00477,
+        "R7_smoker_cigs_min__violation_rate": 0.11345833333333336,
+        "excess_all": 0.0337336663774212,
+        "se_all": 0.0011343470820435668,
+        "mass_all": 1.0,
+        "excess_on_manifold": 0.03773941218801523,
+        "se_on_manifold": 0.0013171258639039082,
+        "mass_on_manifold": 0.6406116666666667,
+        "excess_off_manifold": 0.026588573607414977,
+        "se_off_manifold": 0.002109669256265867,
+        "mass_off_manifold": 0.3593883333333333,
+        "excess_mass_on_manifold": 0.02417994300073944,
+        "excess_mass_off_manifold": 0.009553723376681764,
+        "on_manifold_excess_share": 0.7164561522914991
+      },
+      "across_dgp_seed_sd": {
+        "gen_seed": 0.0,
+        "n": 0.0,
+        "on_manifold_row_share": 0.0016744671623468068,
+        "n_on_manifold": 40.18721189632341,
+        "n_off_manifold": 40.18721189632341,
+        "frac_density_zero_ruleclean": 0.0,
+        "frac_density_zero_violating": 0.0,
+        "density_zero_violating_exact": 0.0,
+        "n_cigs_in_tol_band": 0.0,
+        "mean_pstar": 0.00013558510699874138,
+        "prev": 0.0013788405958952954,
+        "R1_smoker_cigs__violation_rate": 0.0008119891556473473,
+        "R2_glucose_floor__violation_rate": 0.0003494738108134068,
+        "R3_glucose_ceil__violation_rate": 0.0010758459204014506,
+        "R4_bp_mandatory__violation_rate": 0.001178888365273731,
+        "R5_anatomical__violation_rate": 0.0003151058023373524,
+        "R6_preg_age__violation_rate": 0.00018052777564069714,
+        "R7_smoker_cigs_min__violation_rate": 0.0011614914980317328,
+        "excess_all": 0.0011857089397294847,
+        "se_all": 7.684992644913649e-07,
+        "mass_all": 0.0,
+        "excess_on_manifold": 0.0011315067894327297,
+        "se_on_manifold": 2.6822866635816166e-06,
+        "mass_on_manifold": 0.0016744671623468068,
+        "excess_off_manifold": 0.0013103259210640618,
+        "se_off_manifold": 5.520838172535725e-06,
+        "mass_off_manifold": 0.001674467162346808,
+        "excess_mass_on_manifold": 0.0007617060677264439,
+        "excess_mass_off_manifold": 0.0004549728183328245,
+        "on_manifold_excess_share": 0.005495110486206471
+      },
+      "density_zero_violating_exact_all_rows": true,
+      "n_cigs_in_tol_band_total": 0
+    }
+  },
+  "real_null": {
+    "excess_all_by_dgp_seed": [
+      -0.0017240033750699768,
+      0.00044055094991402033,
+      0.0005819557667218478,
+      -0.00020402396589139227,
+      -0.0007619128047559598
+    ],
+    "excess_all_mean": -0.00033348668581629213,
+    "excess_all_sd": 0.0009448565160606534,
+    "se_all_mean": 0.0013724291823156705,
+    "on_manifold_row_share_mean": 1.0,
+    "expectation": "0 in expectation; y ~ Bernoulli(p*) on real data"
+  },
+  "output_paths": {
+    "csv": "results/occupancy_arms.csv",
+    "manifest": "manifests/occupancy_arms.json"
+  }
+}

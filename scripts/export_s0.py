@@ -45,6 +45,10 @@ def _provenance() -> dict:
     Every artifact from one run must carry the same stamp. Calling this per-write instead
     lets each export dirty the tree for the ones after it, so only the first manifest ever
     reports a clean tree -- which silently defeats the two-commit pattern.
+
+    ``@cache`` fixes *when relative to each other*, not *when relative to the first
+    write*. The module-level ``PROV`` below is what makes the first sentence true; other
+    scripts import this function and must hoist it the same way.
     """
     dirty = bool(_git("status", "--porcelain"))
     return {
@@ -62,13 +66,24 @@ def _provenance() -> dict:
     }
 
 
+# Stamped at import, which is the only point guaranteed to precede every write in this
+# module. `@cache` alone is not enough: `_write` splatted `_provenance()` inline *after*
+# `frame.to_csv`, so the first evaluation saw a tree the run itself had already dirtied.
+# That stayed invisible for as long as every regeneration happened to write byte-identical
+# CSVs -- `git status` came back empty and the stamp read clean. The first run that
+# genuinely changes an output flips every manifest in the run to `git_dirty: true`, which
+# is precisely backwards: a run that changes nothing gets the honest stamp and a run that
+# changes something gets the misleading one.
+PROV = _provenance()
+
+
 def _write(name: str, frame: pd.DataFrame, elapsed: float, extra: dict) -> None:
     csv_path = RESULTS / f"{name}.csv"
     frame.to_csv(csv_path, index=False)          # no float_format: full repr precision
     manifest = {
         "artifact": name,
         "stage": "S0",
-        **_provenance(),
+        **PROV,
         "wall_time_seconds": round(elapsed, 3),
         "output_paths": {
             "csv": str(csv_path.relative_to(ROOT)),
@@ -344,7 +359,7 @@ def write_run_manifest(calibrated: DGPConfig, wall_time: float) -> None:
     manifest = {
         "stage": "S0",
         "description": "DGP implementation + test suite, written blind from the specification.",
-        **_provenance(),
+        **PROV,
         "wall_time_seconds": round(wall_time, 3),
         "test_suite": {"command": "uv run pytest tests -q", "summary": summary.strip(),
                        "returncode": suite.returncode},

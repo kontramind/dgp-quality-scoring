@@ -111,3 +111,100 @@ Their committed results stand. **Do not re-run either script in place at HEAD.**
 **How to apply.** Treat `dgp.RULES` as seven rules. Quote R7's binding rate as ~0.198
 (= `p_smoker`). When a script needs a genuine R1-R6 row alongside an R1-R7 one, it must
 name the six explicitly rather than reading `dgp.RULES` and calling the result R1-R6.
+
+---
+
+## 2026-08-20 — Binding-rate band centres come from the derivation, never from a draw
+
+**Decision.** Every binding rate in the E0 golden table falls into exactly one of three
+classes, and the class fixes where its band centre comes from:
+
+| class | rules | centre |
+|---|---|---|
+| **derived from config** | R1 `1 - p_smoker`, R5 `p_male`, R7 `p_smoker`, R6 the pregnancy composite | the closed form |
+| **solved to a declared target** | R3, R4 | the target passed to `solve_binding_rates` |
+| **emergent** | R2 | a measured value; there is no alternative |
+
+R6's closed form is
+`(1 - p_male) * (preg_age_max - age_lo)/(age_hi - age_lo) * p_pregnant`, because
+`Is_Pregnant` is drawn only for women at or below `preg_age_max` over a uniform age
+range. On the defaults it is `0.5 * 25/49 * 0.04 = 0.0102040816`.
+
+**What was wrong.** Four centres in `tests/test_dgp.py::EMERGENT_BANDS` had been set from
+single observed draws: R1 0.803, R5 0.497, R6 0.0100, R7 0.197. Recentred on their
+derivations: **0.800, 0.500, 0.010204, 0.200**. Widths are unchanged, and every one of
+the seven rates stays inside its band across seeds 0-4 (worst case 0.50 of a width, R3).
+
+**Why it matters beyond tidiness.** Canonical measures R5 at 0.502520. Against the old
+centre that consumed 55% of the +/-0.01 before any sampling error was spent; against
+0.500 it consumes 25%. Centring a tolerance on one realisation of a quantity that has a
+closed form is the same single-draw failure mode this project has already paid for twice
+(the reference `gamma = 2.64`, and the 77.5% on-manifold headline — see the entries
+above and `manifests/s0_e0.json`).
+
+**R2's status was checked, not assumed.** It moves with several parameters at once and is
+a Gaussian mixture over a clipped BMI over a uniform age: `p_male=0.3 -> 0.385`,
+`sd_glucose=25 -> 0.425`, `b_bmi_glucose=1.4 -> 0.325`. A measured centre is the only one
+available for it.
+
+**How to apply.** When adding a rule, classify it first. If its antecedent reads a config
+parameter back, the centre is the derivation — do not run the DGP and write down what came
+out. `tests/test_dgp.py::test_derived_band_centres_match_their_closed_forms` enforces this
+for the four derived rules so the rule survives as more than a comment. Note that
+`EMERGENT_BANDS` is now a misnomer: four of its seven entries are derived, not emergent.
+Renaming it touches every call site and was left for a follow-up.
+
+---
+
+## 2026-08-20 — `s0_e0_golden` regenerated as a pure column addition
+
+**Decision.** `results/s0_e0_golden.csv` and `manifests/s0_e0_golden.json` were
+regenerated after R7 joined `dgp.RULES`, by re-running
+`scripts/export_s0.py::export_e0_golden` alone. This is **not** a re-baseline.
+
+**The licence.** The R7 addition is bit-invariant for every pre-existing E0 quantity —
+proved by construction and by execution in `manifests/s0_e0_r7_invariance.json` (commit
+`6282f5a`). Regeneration therefore cannot alter a cell; it can only append the two
+columns `export_s0.py` derives from `list(dgp.RULES)`.
+
+**The verification.** The regenerated CSV was diffed against the committed one before
+being committed, comparing the raw CSV text of every pre-existing cell rather than
+parsed floats. All 24 pre-existing columns bit-identical; row count 5 -> 5; exactly two
+columns added, `R7_smoker_cigs_min__binding_rate` and
+`R7_smoker_cigs_min__violation_rate`, each landing at the end of its own block per the
+script's grouping; R7's violation rate exactly 0.0 on all five seeds.
+
+**Why bother.** The committed CSV was no longer schema-identical to what its own script
+produces at HEAD, so the next person to run `export_s0.py` would have seen a column diff
+and had to reconstruct why. **Still outstanding:** `manifests/s0_e0.json` is written by
+`write_run_manifest`, which also derives `binding_rates` / `violation_rates` from
+`m["rules"]` and so is stale in the same way. It was left alone deliberately — it embeds
+a pytest summary line, so regenerating it is not a pure column addition and does not
+carry this entry's licence.
+
+---
+
+## 2026-08-20 — Cohort marginals are stipulations, not epidemiological estimates
+
+**Decision.** `p_smoker`, `p_male`, `p_pregnant`, `preg_age_max` and `age_range` fix the
+composition of the simulated cohort. They are **declared stipulations**. They are not
+estimates of any real population and must never be cited to a prevalence source.
+
+**What is sourced, and where.** Only the structural coefficients are literature-backed:
+`b_bmi_glucose = 0.70` and `b_hyperglyc_sbp = 1.76` (Mendelian-randomization estimates)
+and the 30-79 age range's origin in the AHA PREVENT validated range. In canonical `dgp.py`
+these carry inline `# MR estimate` comments on the `DGPConfig` fields; the full citations
+live in `reference/dgp_frozen.py::COEFFICIENT_PROVENANCE`, which is comparison-only and
+must not become a runtime dependency. Note that the age range is doing two jobs — it is
+sourced *and* it enters R6's derived band centre as a cohort stipulation.
+
+**Why this is worth writing down.** `p_smoker = 0.20` is roughly double contemporary US
+adult cigarette-smoking prevalence (9.9% in 2024 — an external figure, not derivable from
+this repo). Sourcing it would invite an audit of the DGP as a cardiovascular model. It is
+not one and does not need to be: no claim in this line of work depends on a marginal's
+epidemiological accuracy. The marginals exist to give each rule enough binding mass to
+carry signal, which is a design requirement, not a modelling claim.
+
+**How to apply.** In prose, call these "stipulated cohort composition". If a reviewer asks
+why smoking prevalence is 20%, the answer is that R1 and R7 need binding mass on both
+sides of the smoker split, not that any population looks like this.

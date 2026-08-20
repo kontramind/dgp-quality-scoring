@@ -29,21 +29,47 @@ from dgp import (
 
 E0_TARGETS = {"R3_glucose_ceil": 0.08, "R4_bp_mandatory": 0.20}
 
-# Binding rates that emerge from the cohort rather than being solved for. Spec values.
+# Binding rates that are not solved for by solve_binding_rates(). Every rule falls into
+# exactly one of three classes, and the class decides where its band centre comes from:
+#
+#   derived   The antecedent is a config parameter read back, so the rate has a closed
+#             form in DGPConfig. The centre is that closed form. R1 `1 - p_smoker`,
+#             R5 `p_male`, R7 `p_smoker`, and R6 the pregnancy composite
+#             `(1 - p_male) * (preg_age_max - age_lo)/(age_hi - age_lo) * p_pregnant`
+#             -- Is_Pregnant is drawn only for women at or below preg_age_max, over a
+#             uniform age range. On the defaults: 0.800, 0.500, 0.200, 0.0102040816.
+#
+#   solved    The rate is a target handed to solve_binding_rates(). The centre is the
+#             declared target. R3 and R4, in SOLVED_BANDS below.
+#
+#   emergent  No closed form; the centre can only be measured. R2 alone. Checked rather
+#             than assumed: it moves with several parameters at once and is a Gaussian
+#             mixture over a clipped BMI over a uniform age. Sweeping one parameter at a
+#             time moves it well outside any band -- p_male=0.3 -> 0.385,
+#             sd_glucose=25 -> 0.425, b_bmi_glucose=1.4 -> 0.325 -- which is what a
+#             genuinely emergent rate looks like and what R1/R5/R6/R7 do not do.
+#
+# **A derived or solved centre never comes from an observed draw.** Four of these centres
+# were originally set from single realisations (R1 0.803, R5 0.497, R6 0.0100, R7 0.197)
+# and were recentred on their derivations. That is the same single-draw failure mode this
+# project has already paid for twice -- see decisions.md. The recentring is not cosmetic:
+# canonical measures R5 at 0.502520, which spent 55% of the +/-0.01 against the old
+# centre and spends 25% against the derived one.
+#
+# Widths are unchanged by the recentring and are still sampling-error arguments.
 EMERGENT_BANDS = {
-    "R1_smoker_cigs": (0.803, 0.01),
-    "R2_glucose_floor": (0.379, 0.01),
-    "R5_anatomical": (0.497, 0.01),
-    # R6 needs its own band. At p=0.01 the spec's blanket +/-0.01 admits [0, 0.02], so it
+    "R1_smoker_cigs": (0.800, 0.01),        # derived: 1 - p_smoker
+    "R2_glucose_floor": (0.379, 0.01),      # emergent: measured, no closed form
+    "R5_anatomical": (0.500, 0.01),         # derived: p_male
+    # R6 needs its own width. At p=0.01 the spec's blanket +/-0.01 admits [0, 0.02], so it
     # passes even when R6 never binds at all -- which is the dead-rule condition itself.
     # SE = sqrt(0.01*0.99/50000) = 0.00044, so +/-0.002 is ~4.5 SE.
-    "R6_preg_age": (0.0100, 0.002),
+    "R6_preg_age": (0.010204, 0.002),       # derived: the pregnancy composite above
     # R7 was appended to dgp.RULES after this table was first recorded. Adding it edited
     # no cell above: evaluate_rules consumes no RNG and runs after all sampling, so a
     # rule addition cannot perturb the sampler and every other golden value is
-    # bit-identical (asserted by scripts/export_e0_r7_invariance.py). R7 binds on smokers,
-    # so its rate is p_smoker; +/-0.01 matches the other emergent bands.
-    "R7_smoker_cigs_min": (0.197, 0.01),
+    # bit-identical (asserted by scripts/export_e0_r7_invariance.py).
+    "R7_smoker_cigs_min": (0.200, 0.01),    # derived: p_smoker
 }
 
 # Solved binding rates, re-measured on an independent n=50000 draw.
@@ -59,6 +85,42 @@ SOLVED_BANDS = {"R3_glucose_ceil": (0.080, 0.005), "R4_bp_mandatory": (0.200, 0.
 
 def _rates(manifest) -> dict[str, float]:
     return {r["name"]: r["binding_rate"] for r in manifest["rules"]}
+
+
+def _derived_centres(cfg: DGPConfig) -> dict[str, float]:
+    """Closed forms for the four `derived` binding rates, straight off the config."""
+    age_lo, age_hi = cfg.age_range
+    return {
+        "R1_smoker_cigs": 1.0 - cfg.p_smoker,
+        "R5_anatomical": cfg.p_male,
+        "R7_smoker_cigs_min": cfg.p_smoker,
+        "R6_preg_age": ((1.0 - cfg.p_male)
+                        * (cfg.preg_age_max - age_lo) / (age_hi - age_lo)
+                        * cfg.p_pregnant),
+    }
+
+
+def test_derived_band_centres_match_their_closed_forms():
+    """The four `derived` centres are the derivation, not a remembered draw.
+
+    Without this the classification above is a comment, and a comment does not stop the
+    next person from pasting in an observed rate. R2, R3 and R4 are deliberately absent:
+    R2 has no closed form and R3/R4 take their centres from SOLVED_BANDS' targets.
+    """
+    derived = _derived_centres(DGPConfig())
+    assert set(derived) | {"R2_glucose_floor"} == set(EMERGENT_BANDS)
+
+    for rule, centre in derived.items():
+        recorded = EMERGENT_BANDS[rule][0]
+        # R6's closed form is 1/98, which does not terminate; the table carries it to the
+        # six figures the other centres are exact at.
+        assert recorded == pytest.approx(centre, abs=5e-7), (
+            f"{rule}: band centre {recorded} != derived {centre}"
+        )
+
+    assert set(SOLVED_BANDS) == set(E0_TARGETS)
+    for rule, target in E0_TARGETS.items():
+        assert SOLVED_BANDS[rule][0] == target
 
 
 @pytest.fixture(scope="module")
